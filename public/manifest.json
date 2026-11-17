@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Fastmail Assist",
+  "version": "0.1.0",
+  "description": "Give a line of context, get a reply or new email saved to your Fastmail Drafts. Never sends.",
+  "minimum_chrome_version": "116",
+  "permissions": ["sidePanel", "storage"],
+  "host_permissions": [
+    "https://app.fastmail.com/*",
+    "https://api.fastmail.com/*",
+    "https://api.anthropic.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open Fastmail Assist"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://app.fastmail.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "open-panel": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Open the assistant panel"
+    }
+  }
+}
