@@ -2,7 +2,7 @@
 
 Chrome side-panel assistant for Fastmail's web app. Give a line of context, get a reply or a new email in your own voice, saved to your Fastmail Drafts. It cannot send mail.
 
-See [DESIGN.md](DESIGN.md) for the architecture, security model, open questions and milestones.
+See [DESIGN.md](DESIGN.md) for the architecture, security model, open questions and milestones, and [AGENTS.md](AGENTS.md) for the current state and what to do next.
 
 ## Build
 
