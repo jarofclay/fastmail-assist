@@ -1,12 +1,13 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { reactive } from 'vue';
 import { manifest } from '../scripts/manifest.mjs';
 import { scanText } from '../scripts/scan-secrets.mjs';
 import { streamMessage } from '../src/lib/claude';
 import { buildChat, draftEmail } from '../src/lib/engine';
 import { draftsUrl, parseMailContext } from '../src/lib/fastmailUrl';
-import { withDefaults } from '../src/lib/settings';
+import { saveSettings, withDefaults } from '../src/lib/settings';
 import type { Identity, Settings, Thread } from '../src/lib/types';
 
 const root = resolve(import.meta.dirname, '..');
@@ -162,6 +163,21 @@ describe('settings and URLs', () => {
     expect(old.inPage).toEqual({ toolbarButton: true, editorChip: true });
     expect(withDefaults({ inPage: { toolbarButton: false } as never }).inPage).toEqual({ toolbarButton: false, editorChip: true });
     expect(withDefaults(undefined).identities).toEqual([]);
+  });
+
+  it('stores settings as plain data, since Firefox cannot structured-clone a reactive proxy', async () => {
+    const set = vi.fn(async () => {});
+    vi.stubGlobal('chrome', { storage: { local: { set } } });
+    try {
+      await saveSettings(reactive(withDefaults({ fastmailToken: 't', anthropicKey: 'k', identities: [us] })));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    const written = (set.mock.calls[0] as unknown[])[0] as { settings: Settings };
+    // Node's structuredClone throws DataCloneError on a Proxy exactly as Firefox does.
+    expect(() => structuredClone(written)).not.toThrow();
+    expect(written.settings.identities).toEqual([us]);
+    expect(written.settings.inPage).toEqual({ toolbarButton: true, editorChip: true });
   });
 
   it('links to Drafts for the same Fastmail user', () => {

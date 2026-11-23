@@ -32,7 +32,9 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  await chrome.storage.local.set({ [KEY]: settings });
+  // Chrome serialises the value as JSON, but Firefox structured-clones it and
+  // refuses a Vue reactive Proxy with DataCloneError, so hand it plain data.
+  await chrome.storage.local.set({ [KEY]: JSON.parse(JSON.stringify(settings)) as Settings });
 }
 
 export function isConfigured(s: Settings): boolean {

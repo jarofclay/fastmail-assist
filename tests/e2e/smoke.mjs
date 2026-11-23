@@ -65,7 +65,7 @@ try {
     await options.fill('#email-0', 'us@example.org');
     await options.fill('#voice-0', 'Warm and brief. First names.');
     await options.getByRole('button', { name: 'Save settings' }).click();
-    await options.getByText('Saved.').waitFor();
+    await options.getByText('Saved.', { exact: true }).waitFor();
     const tests = options.getByRole('button', { name: 'Test connection' });
     await tests.nth(0).click();
     await options.getByText('The inbox is readable.').waitFor();
@@ -155,6 +155,20 @@ try {
     await fa.locator('.title').getByText('Reply to Dana Lee').waitFor();
     await page.keyboard.press('Escape');
     assert.equal(await fa.locator('.card').isVisible(), false);
+  });
+
+  await step('saving settings updates a composer that is already open', async () => {
+    await fa.locator('.launcher').click();
+    await fa.locator('.title').getByText('Reply to Dana Lee').waitFor();
+    await options.bringToFront();
+    await options.getByRole('button', { name: 'Add identity' }).click();
+    await options.fill('#name-1', 'Sam');
+    await options.fill('#email-1', 'sam@example.org');
+    await options.getByRole('button', { name: 'Save settings' }).click();
+    await options.getByText('Saved.', { exact: true }).waitFor();
+    await page.bringToFront();
+    await fa.locator('select option[value="sam@example.org"]').waitFor({ state: 'attached' });
+    await page.keyboard.press('Escape');
   });
 
   await step('with no conversation, it drafts a new email with a subject', async () => {
