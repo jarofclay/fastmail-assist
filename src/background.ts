@@ -78,7 +78,6 @@ function features(settings: Settings): FA.Features {
   return {
     configured: isConfigured(settings),
     toolbarButton: settings.inPage.toolbarButton,
-    editorChip: settings.inPage.editorChip,
     canOpenPanel: hasSidePanel,
   };
 }

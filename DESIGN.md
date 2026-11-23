@@ -2,7 +2,7 @@
 
 A browser extension, for Chrome and Firefox, that brings the one Missive feature worth keeping to Fastmail's web app: say in a line what a reply should say, get a draft in your own voice that knows the whole conversation and the person, and have it land in Fastmail ready to review and send.
 
-Status: v0.3.1. It builds for both browsers, typechecks, passes unit tests, and passes a browser test that loads the Chrome build into Chromium against a stand-in for Fastmail and the Claude API. It has not yet run against the real Fastmail web app, a real account or the real Claude API, and the Firefox build has been loaded in Firefox only far enough to find one bug; milestone 1 below is exactly that.
+Status: v0.4.0. It builds for both browsers, typechecks, passes unit tests, and passes a browser test that loads the Chrome build into Chromium against a stand-in for Fastmail and the Claude API. It has not yet run against the real Fastmail web app, a real account or the real Claude API, and the Firefox build has been loaded in Firefox only far enough to find one bug; milestone 1 below is exactly that.
 
 ## Goals
 
@@ -25,11 +25,11 @@ Status: v0.3.1. It builds for both browsers, typechecks, passes unit tests, and 
 
 In the Fastmail page:
 
-1. Open a conversation. **Reply with AI** appears next to Fastmail's Reply button, and as a floating button bottom right. Either opens the composer, a small card in the corner of the page; so does Alt+Shift+D.
+1. Open a conversation. **Reply with AI** appears next to Fastmail's Reply button, and the floating button bottom right becomes **Reply with AI | New**. Either opens the composer, a small card in the corner of the page; so does Alt+Shift+D. **New** opens it for a fresh email instead, which matters when a draft is open and the extension cannot tell a reply from a new message.
 2. The composer shows who the reply goes to (To is prefilled from the message, editable), the subject, how many messages the conversation has, and, a moment later, how many earlier conversations with that person it found. Type the instruction ("yes to the 12th, ask if they can host"), choose the From identity if the suggested one is wrong, press **Draft**. The text streams in.
 3. Edit it directly, or ask for a revision ("shorter", "in German").
 4. Finish one of two ways:
-   - **Insert into draft.** Click Reply in Fastmail (before or after drafting). The composer notices the open editor and offers Insert, which writes the text at the cursor. Fastmail keeps handling recipients, the quoted original and the signature. A ✦ button in the corner of any open draft editor opens the composer the same way.
+   - **Insert into draft.** Click Reply in Fastmail (before or after drafting). The composer notices the open editor and offers Insert, which writes the text at the cursor. Fastmail keeps handling recipients, the quoted original and the signature.
    - **Save to Drafts.** With no draft open, the reply is saved to Fastmail Drafts over JMAP, threaded onto the conversation.
 5. Review and send in Fastmail as usual.
 
@@ -60,7 +60,7 @@ The side panel (Chrome) or sidebar (Firefox), Alt+Shift+R, has the same flow wit
 | Content script | `src/content.ts` | All UI inside the Fastmail page, in a closed shadow root. Sends the page URL, the instruction and the To field to the background; writes the returned draft into the open editor. Holds no keys and reads no mail. |
 | Background | `src/background.ts` | Answers the composer: looks up the conversation and the earlier mail with the recipient, suggests people for To, drafts, revises, saves to Drafts. Opens the side panel inside the click's user gesture; restricts `storage.local` to extension pages. |
 | Side panel | `src/sidepanel/App.vue` | The full workflow with recent conversations and new-email form. |
-| Options page | `src/options/Options.vue` | Fastmail token, Claude key, model, identities with voice notes, connection tests, switches for the in-page extras. |
+| Options page | `src/options/Options.vue` | Fastmail token, Claude key, model, identities with voice notes, connection tests, the history setting, the toolbar-button switch. |
 | Engine | `src/lib/engine.ts` | Builds the model request, streams the draft, splits subject from body. Shared by background and panel. |
 | URL parser | `src/lib/fastmailUrl.ts` | Tab URL to thread and email id (`/mail/<Mailbox>/<A…>.<S…>`). |
 | JMAP client | `src/lib/jmap.ts` | Session, read a thread, list recent threads, earlier mail with an address, people matching a typed name (contacts and recent correspondents), create a draft. |
@@ -78,7 +78,7 @@ The in-page UI is layered so that each layer depends on less than the one above 
 | Layer | Depends on | If it breaks |
 | --- | --- | --- |
 | "Reply with AI" next to Reply | A visible button labelled Reply (or its translation) | Use the floating button. Can be switched off in settings. |
-| ✦ chip and Insert into draft | The draft editor being a large editable element that accepts a paste event or `insertText` | Use Save to Drafts or Copy. |
+| Insert into draft | The draft editor being a large editable element that accepts a paste event or `insertText` | Use Save to Drafts or Copy. |
 | Floating button, composer, Save to Drafts | Nothing in Fastmail's markup; only the URL | Use the side panel's recent-conversations picker. |
 
 Insert does not type into the editor key by key. It gives the editor a paste event carrying plain text, which is how a rich-text editor expects outside text to arrive (Fastmail's editor, Squire, turns it into one block per line). If the editor ignores the event, the browser's `insertText` command is used. The only thing read back is how much text the editor holds, to tell whether the insert worked.

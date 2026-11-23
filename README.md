@@ -15,7 +15,7 @@ It brings the one feature worth keeping from AI-assisted mail clients to Fastmai
 
 ## What it does
 
-- **Reply with AI** sits next to Fastmail's own Reply button, as a floating button, and in the corner of any open draft editor. It opens a small composer in the page. Type the instruction ("yes to the 12th, ask if they can host"), press Draft, and the reply streams in.
+- **Reply with AI** sits next to Fastmail's own Reply button and as a floating button, which splits into **Reply with AI | New** whenever a conversation is open. It opens a small composer in the page. Type the instruction ("yes to the 12th, ask if they can host"), press Draft, and the reply streams in.
 - **It reads the whole conversation**, not just the last message: every message in the thread, who took part, and what has already been agreed. Quoted repeats are stripped so the model sees each message once.
 - **It knows the person.** Before drafting, it looks up recent earlier conversations with the recipient and gives the model the latest message of each as background, so the greeting uses the right name and the draft fits the relationship. The composer says how many it found. This can be turned off in the settings.
 - **New emails** get a To field that suggests people from your Fastmail contacts and from recent correspondence as you type. Any address can be typed in. The model suggests a subject, which you can edit.
@@ -32,7 +32,7 @@ It brings the one feature worth keeping from AI-assisted mail clients to Fastmai
 - **Email text is treated as untrusted input.** It is fenced in the prompt and the model is told to treat it as material, never as instructions.
 - **Correspondents' mail goes to the model.** That is the same as using any AI connector on your mailbox, but it is a decision to make knowingly, especially for a shared or organisational inbox.
 
-[DESIGN.md](DESIGN.md) has the full architecture, the security model, open questions and milestones; [AGENTS.md](AGENTS.md) has the current state and what to do next.
+The full policy is in [PRIVACY.md](PRIVACY.md). [DESIGN.md](DESIGN.md) has the architecture, the security model, open questions and milestones; [AGENTS.md](AGENTS.md) has the current state and what to do next.
 
 ## Install
 
@@ -69,11 +69,11 @@ Use both **Test connection** buttons. The Fastmail one also says whether contact
 
 | Where | How |
 | --- | --- |
-| Inside Fastmail | **Reply with AI** next to Reply, the floating button bottom right, or **Alt+Shift+D**. With a draft open, the reply-arrow button in the editor's corner opens the composer too, and the composer offers **Insert into draft**. |
+| Inside Fastmail | **Reply with AI** next to Reply, the floating button bottom right, or **Alt+Shift+D**. With a conversation open the floating button reads **Reply with AI | New**; New starts a fresh email instead of a reply. With a draft open, the composer offers **Insert into draft**. |
 | Side panel / sidebar | **Alt+Shift+R**, or the toolbar icon. Picks up the conversation open in the tab, or lists recent ones. In Chrome the panel belongs to Fastmail tabs: it does not follow you into other tabs, and the icon or shortcut on another tab brings you to Fastmail. |
 | Shortcuts in the composer | **Ctrl/⌘+Enter** drafts, **Enter** in the revision box revises, **Esc** closes. Nothing you type reaches Fastmail's own shortcuts. |
 
-The "Reply with AI" toolbar button and the editor chip depend on Fastmail's page markup and can each be switched off in the settings; the floating button and Save to Drafts work without touching the page.
+The "Reply with AI" toolbar button depends on Fastmail's page markup and can be switched off in the settings; the floating button and Save to Drafts work without touching the page.
 
 ## Development
 
@@ -109,13 +109,17 @@ tests/                      unit tests, and tests/e2e for the browser test
 
 ### Releasing
 
-1. Bump the version: `npm version 0.4.0 --no-git-tag-version`, and add a `## [0.4.0] - <date>` section to `CHANGELOG.md`.
-2. Commit, then `npm run release`. It checks that the tree is clean and the version is consistent, runs `npm run check`, and creates the tag `v0.4.0`.
-3. `git push origin v0.4.0`. The Release workflow builds both extensions, zips them and publishes a GitHub release with the zips attached and the changelog section as notes.
+1. Bump the version: `npm version 0.5.0 --no-git-tag-version`, and add a `## [0.5.0] - <date>` section to `CHANGELOG.md`.
+2. Commit, then `npm run release`. It checks that the tree is clean and the version is consistent, runs `npm run check`, and creates the tag `v0.5.0`.
+3. `git push origin v0.5.0`. The Release workflow builds both extensions, zips them and publishes a GitHub release with the two zips, a source archive, and the changelog section as notes.
+
+### Publishing to the stores
+
+Everything for the Chrome Web Store and Firefox Add-ons submissions, listing texts, privacy answers, reviewer notes and store-sized screenshots, is under [`store/`](store/).
 
 ## Status
 
-Version 0.3.1 builds for both browsers and passes the unit tests and the browser test. It has not yet been run against a real Fastmail account or the real Claude API; that is milestone M1 in [DESIGN.md](DESIGN.md), which also lists what is still unverified about Fastmail's real page.
+Version 0.4.0 builds for both browsers and passes the unit tests and the browser test. It has not yet been run against a real Fastmail account or the real Claude API; that is milestone M1 in [DESIGN.md](DESIGN.md), which also lists what is still unverified about Fastmail's real page.
 
 ## License
 

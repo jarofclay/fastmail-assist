@@ -170,10 +170,10 @@ describe('drafting engine', () => {
 describe('settings and URLs', () => {
   it('fills in fields added after the settings were first saved', () => {
     const old = withDefaults({ fastmailToken: 't', anthropicKey: 'k', model: 'm', identities: [us] });
-    expect(old.inPage).toEqual({ toolbarButton: true, editorChip: true });
+    expect(old.inPage).toEqual({ toolbarButton: true });
     expect(old.history).toBe(true);
     expect(withDefaults({ history: false }).history).toBe(false);
-    expect(withDefaults({ inPage: { toolbarButton: false } as never }).inPage).toEqual({ toolbarButton: false, editorChip: true });
+    expect(withDefaults({ inPage: { toolbarButton: false, editorChip: true } as never }).inPage).toEqual({ toolbarButton: false });
     expect(withDefaults(undefined).identities).toEqual([]);
   });
 
@@ -189,7 +189,7 @@ describe('settings and URLs', () => {
     // Node's structuredClone throws DataCloneError on a Proxy exactly as Firefox does.
     expect(() => structuredClone(written)).not.toThrow();
     expect(written.settings.identities).toEqual([us]);
-    expect(written.settings.inPage).toEqual({ toolbarButton: true, editorChip: true });
+    expect(written.settings.inPage).toEqual({ toolbarButton: true });
   });
 
   it('links to Drafts for the same Fastmail user', () => {

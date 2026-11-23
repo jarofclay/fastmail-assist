@@ -1,0 +1,5 @@
+# Left out of `git archive`, which makes the source zip attached to releases
+# (what Firefox Add-ons reviews): material that is not needed to build.
+store/ export-ignore
+docs/ export-ignore
+.githooks/ export-ignore

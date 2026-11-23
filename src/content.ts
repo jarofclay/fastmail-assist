@@ -1,8 +1,8 @@
 // Content script for app.fastmail.com: the part of Fastmail Assist that lives
 // inside the Fastmail page.
 //
-//   launcher   a floating button, always available (the fallback entry point)
-//   chip       a small button in the corner of an open draft editor
+//   launcher   a floating button, always available (the fallback entry point);
+//              with a conversation open it splits into "Reply with AI | New"
 //   toolbar    "Reply with AI" next to Fastmail's own Reply button (optional,
 //              and the only piece that looks at Fastmail's markup)
 //   composer   a card where you say what the email should say, see the draft,
@@ -113,18 +113,18 @@
     button:disabled { cursor: default; opacity: 0.5; }
     :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-    .launcher, .chip {
-      position: fixed; z-index: 2147483000;
-      display: inline-flex; align-items: center; gap: 7px;
-      border: 0; color: #fff;
-      background: linear-gradient(135deg, #2456e6, #7a4bf0);
+    .launcher {
+      position: fixed; right: 20px; bottom: 20px; z-index: 2147483000;
+      display: inline-flex; align-items: stretch; height: 34px; border-radius: 17px; overflow: hidden;
+      color: #fff; background: linear-gradient(135deg, #2456e6, #7a4bf0);
       box-shadow: 0 1px 2px rgba(16, 24, 40, 0.2), 0 6px 18px rgba(52, 76, 220, 0.35);
-      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
-    .launcher { right: 20px; bottom: 20px; height: 38px; padding: 0 15px 0 12px; border-radius: 19px; font-weight: 600; }
-    .launcher:hover, .chip:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(16, 24, 40, 0.2), 0 10px 24px rgba(52, 76, 220, 0.45); }
-    .chip { width: 30px; height: 30px; justify-content: center; border-radius: 50%; opacity: 0.72; }
-    .chip:hover { opacity: 1; }
+    .launcher:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(16, 24, 40, 0.2), 0 10px 24px rgba(52, 76, 220, 0.45); }
+    .launcher button { display: inline-flex; align-items: center; gap: 6px; padding: 0 13px 0 11px; border: 0; background: none; color: inherit; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+    .launcher button:hover { background: rgba(255, 255, 255, 0.12); }
+    .launcher .new { padding: 0 12px; border-left: 1px solid rgba(255, 255, 255, 0.3); }
+    .launcher :focus-visible { outline-offset: -3px; outline-color: #fff; }
 
     .card {
       position: fixed; z-index: 2147483001; right: 20px; bottom: 20px;
@@ -135,7 +135,7 @@
       animation: rise 0.14s ease-out;
     }
     @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
-    @media (prefers-reduced-motion: reduce) { .card { animation: none; } .launcher, .chip { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .card { animation: none; } .launcher { transition: none; } }
 
     header { display: flex; align-items: center; gap: 10px; padding: 11px 8px 11px 14px; cursor: grab; user-select: none; border-bottom: 1px solid var(--line); }
     header:active { cursor: grabbing; }
@@ -209,8 +209,9 @@
   }
 
   const launcherLabel = h('span');
-  const launcher = h('button', { class: 'launcher', type: 'button', title: 'Fastmail Assist (Alt+Shift+D)' }, icon('logo', 17), launcherLabel);
-  const chip = h('button', { class: 'chip', type: 'button', title: 'Write with AI', 'aria-label': 'Write with AI', hidden: true }, icon('logo', 16));
+  const launcherMain = h('button', { class: 'main', type: 'button', title: 'Fastmail Assist (Alt+Shift+D)' }, icon('logo', 16), launcherLabel);
+  const launcherNew = h('button', { class: 'new', type: 'button', title: 'Draft a new email instead of a reply', hidden: true }, 'New');
+  const launcher = h('div', { class: 'launcher', role: 'group', 'aria-label': 'Fastmail Assist' }, launcherMain, launcherNew);
 
   const title = h('div', { class: 'title' });
   const sub = h('div', { class: 'sub' });
@@ -264,7 +265,7 @@
   const body = h('div', { class: 'body' }, setup, switchBanner, toRow, instruction, compose, result, status);
   const card = h('section', { class: 'card', role: 'dialog', 'aria-label': 'Fastmail Assist', hidden: true }, header, body);
   const toast = h('div', { class: 'toast', role: 'status', hidden: true });
-  const wrap = h('div', { class: 'fa' }, launcher, chip, card, toast);
+  const wrap = h('div', { class: 'fa' }, launcher, card, toast);
   root.append(wrap);
 
   // --- State ----------------------------------------------------------------------
@@ -280,7 +281,9 @@
 
   const state = {
     open: false,
-    features: { configured: true, toolbarButton: true, editorChip: true, canOpenPanel: false } as FA.Features,
+    features: { configured: true, toolbarButton: true, canOpenPanel: false } as FA.Features,
+    /** "new": the owner chose New on the launcher, so the open conversation is left alone. */
+    mode: 'auto' as 'auto' | 'new',
     conversation: null as FA.Conversation | null,
     /** A conversation opened while a draft for another one is on screen. */
     other: null as FA.Conversation | null,
@@ -440,6 +443,7 @@
     state.conversation = next;
     state.history = null;
     state.toEdited = false;
+    if (next) state.mode = 'auto';
     showPeople([]);
     // A reply goes to the message's sender; a new email starts with To empty.
     toInput.value = next?.to ?? '';
@@ -467,9 +471,12 @@
     const ready = state.features.configured && !state.dead;
 
     launcher.hidden = state.open || !inMail();
-    launcherLabel.textContent = conversationOpen() ? 'Reply with AI' : hasEditor ? 'Write with AI' : 'Draft with AI';
+    // With a draft open the address may name the draft, not the conversation;
+    // then the conversation the composer last found still counts.
+    const replying = conversationOpen() || (hasEditor && Boolean(state.conversation));
+    launcherLabel.textContent = replying ? 'Reply with AI' : hasEditor ? 'Write with AI' : 'Draft with AI';
+    launcherNew.hidden = !replying;
     card.hidden = !state.open;
-    placeChip();
     if (!state.open) return;
 
     wrap.dataset.theme = pageIsDark() ? 'dark' : 'light';
@@ -550,14 +557,18 @@
         if (Date.now() - entry.at < 10 * 60_000 && !urls.includes(entry.url)) urls.push(entry.url);
       }
     }
-    post({ type: 'context', id: contextId, urls });
+    // After New on the launcher, no conversation is offered at all.
+    post({ type: 'context', id: contextId, urls: state.mode === 'new' ? [] : urls });
     render();
   }
 
-  function openComposer() {
+  function openComposer(mode: 'auto' | 'new' = 'auto') {
     if (!state.open) {
       state.open = true;
       card.style.cssText = '';
+      // New, chosen deliberately: a reply draft from before is let go.
+      if (mode === 'new' && state.conversation) switchTo(null);
+      state.mode = mode;
       loadContext();
     }
     render();
@@ -566,6 +577,8 @@
 
   function closeComposer() {
     state.open = false;
+    // A new email in progress stays one when the composer is reopened.
+    if (!state.hasDraft) state.mode = 'auto';
     render();
   }
 
@@ -800,32 +813,6 @@
     }
   }
 
-  function placeChip() {
-    const target = state.features.editorChip && !state.open && !state.dead && inMail() ? liveEditor() : null;
-    if (!target) {
-      chip.hidden = true;
-      return;
-    }
-    const rect = target.el.getBoundingClientRect();
-    let x = Math.min(rect.right, innerWidth) - 40;
-    let y = Math.min(rect.bottom, innerHeight) - 40;
-    // A draft editor that reaches the corner of the window puts the chip on
-    // top of the launcher; step to the left of it, or above it, or give way.
-    if (!launcher.hidden) {
-      const pill = launcher.getBoundingClientRect();
-      const overlaps = () => x < pill.right + 8 && x + 30 > pill.left - 8 && y < pill.bottom + 8 && y + 30 > pill.top - 8;
-      if (overlaps()) x = pill.left - 40;
-      if (x < rect.left) {
-        x = Math.min(rect.right, innerWidth) - 40;
-        y = pill.top - 40;
-      }
-      if (overlaps()) y = -1;
-    }
-    chip.hidden = y < rect.top || y < 0 || x < rect.left;
-    chip.style.left = `${x}px`;
-    chip.style.top = `${y}px`;
-  }
-
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   /**
@@ -1006,9 +993,10 @@
     }
   }
 
-  launcher.addEventListener('click', openComposer);
-  chip.addEventListener('mousedown', (event) => event.preventDefault()); // keep the editor's caret
-  chip.addEventListener('click', openComposer);
+  // mousedown is stopped so that a click keeps the caret in an open draft editor.
+  launcher.addEventListener('mousedown', (event) => event.preventDefault());
+  launcherMain.addEventListener('click', () => openComposer());
+  launcherNew.addEventListener('click', () => openComposer('new'));
   closeButton.addEventListener('click', closeComposer);
   settingsButton.addEventListener('click', () => void oneShot({ type: 'fa:open-settings' }));
   setupButton.addEventListener('click', () => void oneShot({ type: 'fa:open-settings' }));
@@ -1067,8 +1055,6 @@
     true,
   );
   document.addEventListener('selectionchange', rememberCaret);
-  window.addEventListener('scroll', placeChip, { capture: true, passive: true });
-  window.addEventListener('resize', placeChip, { passive: true });
 
   chrome.runtime.onMessage.addListener((message: FA.ToTab) => {
     if (message?.type === 'fa:toggle-composer') {

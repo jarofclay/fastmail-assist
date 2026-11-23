@@ -220,11 +220,10 @@ const testClaude = () =>
 
     <section class="card">
       <h2>Inside Fastmail</h2>
-      <p class="muted">The floating button is always there. These two extras can be turned off.</p>
-      <label class="check">
-        <input v-model="settings.inPage.editorChip" type="checkbox" />
-        Show the ✦ button in the corner of an open draft, to write into it
-      </label>
+      <p class="muted">
+        The floating button bottom right is always there: <strong>Reply with AI | New</strong> with a conversation open,
+        otherwise <strong>Draft with AI</strong>. This extra can be turned off:
+      </p>
       <label class="check">
         <input v-model="settings.inPage.toolbarButton" type="checkbox" />
         Show “Reply with AI” next to Fastmail’s Reply button

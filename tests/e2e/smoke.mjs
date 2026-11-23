@@ -102,10 +102,12 @@ try {
     assert.equal(options.newTab.enabled, false);
   });
 
-  await step('launcher is shown and follows the open conversation', async () => {
+  await step('launcher is shown and follows the open conversation, splitting into Reply | New', async () => {
     await fa.locator('.launcher').getByText('Draft with AI').waitFor();
+    assert.equal(await fa.locator('.launcher .new').isVisible(), false);
     await page.click('#open');
     await fa.locator('.launcher').getByText('Reply with AI').waitFor();
+    await fa.locator('.launcher .new').waitFor();
   });
 
   await step('"Reply with AI" appears next to the Reply button', async () => {
@@ -114,6 +116,7 @@ try {
     assert.equal(await button.evaluate((el) => el.previousElementSibling.id), 'reply');
   });
   await shot(page, 'conversation');
+  await shotOf(fa.locator('.launcher'), 'launcher-reply');
 
   await step('composer opens with the conversation looked up over JMAP, then the earlier mail with Dana', async () => {
     await page.locator('[data-fastmail-assist]').click();
@@ -181,16 +184,21 @@ try {
   });
   await shot(page, 'inserted');
 
-  await step('the chip in the draft editor opens the composer too', async () => {
+  await step('with a draft open, New on the launcher starts a new email; the main button keeps the reply', async () => {
     await page.locator('#editor').click();
-    await fa.locator('.chip').click();
-    await fa.locator('.title').getByText('Reply to Dana Lee').waitFor();
+    await fa.locator('.launcher').getByText('Reply with AI').waitFor();
+    await fa.locator('.launcher .new').click();
+    await fa.locator('.title').getByText('New email').waitFor();
+    assert.equal(await fa.getByRole('combobox', { name: 'To' }).inputValue(), '');
     await page.keyboard.press('Escape');
     assert.equal(await fa.locator('.card').isVisible(), false);
+    await fa.locator('.launcher .main').click();
+    await fa.locator('.title').getByText('Reply to Dana Lee').waitFor();
+    await page.keyboard.press('Escape');
   });
 
   await step('saving settings updates a composer that is already open', async () => {
-    await fa.locator('.launcher').click();
+    await fa.locator('.launcher .main').click();
     await fa.locator('.title').getByText('Reply to Dana Lee').waitFor();
     await options.bringToFront();
     await options.getByRole('button', { name: 'Add identity' }).click();
@@ -205,7 +213,7 @@ try {
 
   await step('with no conversation, To suggests people from the address book and finds earlier mail with them', async () => {
     await page.click('#back');
-    await fa.locator('.launcher').click();
+    await fa.locator('.launcher .main').click();
     await fa.locator('.title').getByText('New email').waitFor();
     const to = fa.getByRole('combobox', { name: 'To' });
     await to.click();
