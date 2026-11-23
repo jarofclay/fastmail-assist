@@ -305,6 +305,8 @@ async function handle(
   if (request.type === 'save') {
     const thread = await getThread(client, cleanRef(request.ref));
     const { target } = describeConversation(thread, settings);
+    const edited = request.to === undefined ? undefined : parseAddressList(String(request.to));
+    if (edited && edited.length === 0) throw new Error('Add at least one valid address in To.');
     await client.createDraft(
       buildReplyDraft({
         target,
@@ -312,6 +314,7 @@ async function handle(
         ownEmails,
         replyAll: Boolean(request.replyAll),
         body: String(request.body ?? ''),
+        to: edited,
       }),
     );
     send({ type: 'saved', id, draftsUrl: draftsUrl(request.pageUrl) });

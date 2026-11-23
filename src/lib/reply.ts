@@ -62,6 +62,22 @@ function dedupe(addresses: Address[]): Address[] {
   });
 }
 
+/**
+ * Who a reply goes to: the message's Reply-To, else its sender; or, when the
+ * message is our own (a follow-up), the people we wrote to. Never ourselves.
+ */
+export function replyRecipients(target: Email, ownEmails: string[]): Address[] {
+  const targetIsOurs = isOwn(target.from?.[0], ownEmails);
+  return dedupe((targetIsOurs ? target.to : target.replyTo?.length ? target.replyTo : target.from) ?? []).filter(
+    (a) => !isOwn(a, ownEmails),
+  );
+}
+
+/** "Dana Lee <dana@example.org>, lee@example.net", as shown in a To field. */
+export function formatAddresses(addresses: Address[]): string {
+  return addresses.map((a) => (a.name?.trim() ? `${a.name.trim()} <${a.email}>` : a.email)).join(', ');
+}
+
 export interface ReplyOptions {
   target: Email;
   identity: Identity;
@@ -70,6 +86,8 @@ export interface ReplyOptions {
   replyAll: boolean;
   /** The reply text, without the quoted original. */
   body: string;
+  /** Recipients as edited by the owner; the message's own when absent. */
+  to?: Address[];
 }
 
 export function buildReplyDraft(options: ReplyOptions): DraftInput {
@@ -77,15 +95,16 @@ export function buildReplyDraft(options: ReplyOptions): DraftInput {
   const own = [...ownEmails, identity.email];
   const targetIsOurs = isOwn(target.from?.[0], own);
 
-  // Replying to our own message is a follow-up: write to its recipients again.
-  const to = dedupe(
-    (targetIsOurs ? target.to : target.replyTo?.length ? target.replyTo : target.from) ?? [],
-  ).filter((a) => !isOwn(a, own));
+  const to = options.to ? dedupe(options.to).filter((a) => !isOwn(a, own)) : replyRecipients(target, own);
 
+  // Reply-all copies everyone else on the message; with an edited To, also
+  // whoever the reply would have gone to, so nobody drops out unnoticed.
   const cc = replyAll
-    ? dedupe([...(targetIsOurs ? [] : (target.to ?? [])), ...(target.cc ?? [])]).filter(
-        (a) => !isOwn(a, own) && !to.some((t) => sameAddress(t.email, a.email)),
-      )
+    ? dedupe([
+        ...(targetIsOurs ? [] : (target.to ?? [])),
+        ...(target.cc ?? []),
+        ...(options.to ? replyRecipients(target, own) : []),
+      ]).filter((a) => !isOwn(a, own) && !to.some((t) => sameAddress(t.email, a.email)))
     : [];
 
   const messageId = target.messageId ?? [];

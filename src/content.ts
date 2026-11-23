@@ -19,8 +19,8 @@
   const HOST_ID = 'fastmail-assist-root';
   if (window.top !== window || document.getElementById(HOST_ID)) return;
 
-  // The same id pattern as src/lib/fastmailUrl.ts; a unit test keeps them in step.
-  const CONVERSATION_ID = /(?:^|[^A-Za-z0-9])[TM][0-9a-f]{8,}(?![A-Za-z0-9])/;
+  // The same pattern as src/lib/fastmailUrl.ts; a unit test keeps them identical.
+  const CONVERSATION_ID = /\/mail\/[^?#\s]+?\/(?:(T[0-9a-f]{8,}|A[A-Za-z0-9_-]{8,})(?:\.(M[0-9a-f]{8,}|S[A-Za-z0-9_-]{8,}))?|(M[0-9a-f]{8,}|S[A-Za-z0-9_-]{8,}))(?=[\s?#]|$)/;
   /** Sections of Fastmail where a mail assistant has no business. */
   const NOT_MAIL = /^\/(calendar|contacts|settings|files|notes|login|signup)(\/|$)/;
   /** Names of Fastmail's Reply button, for the optional toolbar button. */
@@ -293,6 +293,8 @@
     /** Address-book matches for the entry being typed in To, and the highlighted one. */
     people: [] as FA.Person[],
     active: -1,
+    /** True once the owner has changed the prefilled To of a reply. */
+    toEdited: false,
     /** True once the extension has been reloaded under this page. */
     dead: false,
   };
@@ -360,6 +362,7 @@
         state.other = next;
       } else {
         if (changed) switchTo(next);
+        else if (next && !state.toEdited && !toInput.value.trim()) toInput.value = next.to;
         state.other = null;
       }
       if (reply.error) say('error', reply.error);
@@ -436,6 +439,10 @@
     resetDraft();
     state.conversation = next;
     state.history = null;
+    state.toEdited = false;
+    showPeople([]);
+    // A reply goes to the message's sender; a new email starts with To empty.
+    toInput.value = next?.to ?? '';
     if (next) {
       if (next.suggestedIdentity && !state.identityChosen) identity.value = next.suggestedIdentity;
     } else {
@@ -478,8 +485,8 @@
     setup.hidden = state.features.configured;
     switchBanner.hidden = !state.other;
     instruction.hidden = compose.hidden = !ready;
-    toRow.hidden = !ready || Boolean(talk);
-    if (toRow.hidden) suggest.hidden = true;
+    toRow.hidden = !ready;
+    toInput.placeholder = talk ? '' : 'Name or address; your contacts fill in as you type';
     instruction.placeholder = talk ? 'What should the reply say? e.g. Yes to the 12th, ask if they can host' : 'What is this email about? e.g. Invite them to dinner on Friday';
 
     const drafting = state.busy === 'draft';
@@ -495,7 +502,8 @@
     subjectInput.readOnly = drafting;
 
     const idle = !state.busy && state.hasDraft;
-    const canSave = Boolean(talk) || recipients().length > 0;
+    // A reply saves to its prefilled To; an edited or new-email To needs a valid address.
+    const canSave = talk ? !state.toEdited || recipients().length > 0 : recipients().length > 0;
     reviseButton.disabled = !idle || !revision.value.trim();
     copyButton.disabled = !idle;
     insertButton.hidden = !hasEditor;
@@ -601,7 +609,7 @@
 
   function save() {
     if (state.busy || !draft.value.trim()) return;
-    if (!state.conversation && recipients().length === 0) {
+    if ((!state.conversation || state.toEdited) && recipients().length === 0) {
       say('error', 'Add who the email is for in To first.');
       toInput.focus();
       return;
@@ -618,6 +626,7 @@
         replyAll: replyAll.checked,
         body: draft.value,
         pageUrl: location.href,
+        ...(state.toEdited ? { to: toInput.value } : {}),
       });
     } else {
       post({
@@ -659,6 +668,7 @@
   function onToChanged() {
     clearTimeout(peopleTimer);
     clearTimeout(historyTimer);
+    if (state.conversation) state.toEdited = true;
     const entry = currentEntry();
     if (entry.text.length < 2) showPeople([]);
     else {

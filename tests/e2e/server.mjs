@@ -11,15 +11,17 @@ import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..', '..');
 
-export const THREAD_ID = 'Tabc123def4567890';
-export const EMAIL_ID = 'M0123456789abcdef01234567';
+// Ids in the shape Fastmail really uses: thread ids start with "A", email ids
+// with "S", twelve base64url characters. Made up, like everything else here.
+export const THREAD_ID = 'Ab1cD2eF3gH4';
+export const EMAIL_ID = 'Sz9Yx8Wv7Ut6';
 /** An older, separate conversation with the same person: the "earlier mail" the model gets as background. */
-export const OLD_THREAD_ID = 'Tfedcba9876543210';
-export const OLD_EMAIL_ID = 'M0123456789abcdef0123ab00';
+export const OLD_THREAD_ID = 'AqW3eR5tY7uI';
+export const OLD_EMAIL_ID = 'Sp0oI9uY8tR7';
 
 const emails = [
   {
-    id: 'M0123456789abcdef01234500',
+    id: 'Sa1Bc2De3Fg4',
     threadId: THREAD_ID,
     from: [{ name: 'Dana Lee', email: 'dana@example.com' }],
     to: [{ name: 'Sam & Alex', email: 'us@example.org' }],
@@ -156,7 +158,7 @@ function appPage() {
     window.squire.setHTML('<div><br></div><div><br></div><div>--<br>Sam &amp; Alex</div><blockquote><div>Any news? Also, can you bring dessert?</div></blockquote>');
     window.squire.focus(); window.squire.moveCursorToStart();
   };
-  if (/[TM][0-9a-f]{8,}/.test(location.pathname)) show(true);
+  if (/\\/mail\\/[^/]+\\/[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/.test(location.pathname)) show(true);
 </script></body></html>`;
 }
 
@@ -187,7 +189,7 @@ function jmap(body, state) {
     else if (name === 'Email/query') result = { ids: queryEmails(args) };
     else if (name === 'Email/set') {
       state.drafts.push(args.create.draft);
-      result = { created: { draft: { id: 'Mnewdraft00000001' } } };
+      result = { created: { draft: { id: 'Snewdraft0001' } } };
     } else if (name === 'ContactCard/query') {
       const needle = (args.filter?.text ?? '').toLowerCase();
       result = { ids: contacts.filter((c) => JSON.stringify(c).toLowerCase().includes(needle)).slice(0, args.limit ?? 10).map((c) => c.id) };

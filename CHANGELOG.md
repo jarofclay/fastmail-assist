@@ -6,6 +6,13 @@ Releases are published from tags: see "Releasing" in the README.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-23
+
+### Fixed
+
+- **Replies opened as new emails on the real Fastmail page.** The URL parser expected ids of the shape `T<hex>` and `M<hex>`, which Fastmail does not use: its thread ids start with `A` and its email ids with `S`, twelve base64-style characters each, in URLs like `/mail/Inbox/<threadId>.<emailId>?u=…`. No conversation was ever recognised, so the composer asked for a To address and drafted without the thread. The parser now reads that shape (and still the documented one), so replies get the whole conversation and the earlier mail with the sender as intended.
+- **To is filled in for replies.** The composer and the side panel now show the To field for a reply too, prefilled from the message being answered (its Reply-To or sender, or the recipients of your own message). It can be edited; Save to Drafts uses what is in the field.
+
 ## [0.3.0] - 2026-11-23
 
 ### Added

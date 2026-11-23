@@ -6,7 +6,7 @@ Read this first, then [DESIGN.md](DESIGN.md) for the architecture and the reason
 
 A browser extension (Manifest V3) for Fastmail's web app, built for Chrome and Firefox from one codebase. The owner gives a one-line instruction, in a composer inside the Fastmail page or in the side panel; the extension reads the open conversation and the recent earlier mail with the recipient over JMAP, drafts a reply or new email with the Claude API in the voice of the chosen sending identity, and either writes it into the draft that is open in Fastmail or saves it to Fastmail Drafts. A person reviews and sends in Fastmail. It replaces the AI-reply feature the owner used in Missive.
 
-## State at handoff (v0.3.0)
+## State at handoff (v0.3.1)
 
 Working and checked:
 
@@ -19,7 +19,7 @@ New in v0.3.0: the prompt carries the whole conversation with its participants (
 
 Not done, and not to be assumed working:
 
-- **Nothing has run against the real Fastmail web app, a real Fastmail account or the real Claude API.** `src/lib/jmap.ts` and `src/lib/claude.ts` are written from the published API docs. In particular the contacts calls (`ContactCard/query` with a `text` filter, JSContact cards) and the `Email/query` filters used for history and people search are unverified (DESIGN.md open questions 10 and 11). Both fail soft: no contacts means suggestions come from mail only; a failed history lookup means the draft goes without it.
+- **Almost nothing has run against the real Fastmail web app, a real Fastmail account or the real Claude API.** The one thing that has: v0.3.0 on the owner's Fastmail, which showed the URL parser never matched a real conversation (fixed in v0.3.1). `src/lib/jmap.ts` and `src/lib/claude.ts` are written from the published API docs. In particular the contacts calls (`ContactCard/query` with a `text` filter, JSContact cards) and the `Email/query` filters used for history and people search are unverified (DESIGN.md open questions 10 and 11). Both fail soft: no contacts means suggestions come from mail only; a failed history lookup means the draft goes without it.
 - **The in-page pieces have only met a mock page.** The toolbar button finds Fastmail's Reply button by its label, and the draft-editor chip and Insert find the editor by it being a large focused editable element. Whether Fastmail's real page behaves like the mock is the first thing to check.
 - **The Firefox build has been loaded in Firefox only once**, far enough to find and fix a settings bug; the sidebar and the in-page flow there are unverified.
 - The real side panel has never been opened; the e2e test loads `sidepanel.html` as a tab.
@@ -30,7 +30,7 @@ Not done, and not to be assumed working:
 Goal: one real reply drafted, threaded correctly, and sent by the owner from Fastmail. The owner has to be at the keyboard for this (their browser, their tokens). Work through these in order and record each answer in DESIGN.md under "Open questions".
 
 1. `npm install`, `npm run build`, load `dist/chrome` at `chrome://extensions`, open the options page. Fix whatever breaks.
-2. **Fastmail URL format** (open question 1). Ask the owner for the URL shape of an open conversation in each view they use, and of an open draft, with ids intact. `src/lib/fastmailUrl.ts` assumes a `T<hex>` thread id and `M<hex>` email id somewhere in the path or hash; `src/content.ts` repeats the pattern (a unit test keeps the two in step). Fix both and the tests if that is wrong. The recent-conversations picker in the side panel works regardless.
+2. **Fastmail URL format** (open question 1). Settled in v0.3.1: `/mail/<Mailbox>/<threadId>.<emailId>?u=…` with `A…` thread ids and `S…` email ids (twelve base64url characters). `src/lib/fastmailUrl.ts` and the identical literal in `src/content.ts` read that (a unit test keeps the two equal). Left to check at the keyboard: the URL while a draft is open, and in search results. If either differs, those two files and the tests are the only places to change.
 3. **Token scopes** (open question 2). Have the owner create a Fastmail API token with Email and Contacts and without Email submission, then use Test connection. It should say the inbox and contacts are readable. Confirm `Email/set` can create a draft with that token.
    - **Contacts and history** (open questions 10 and 11). In the composer with no conversation, type two letters of a known contact's name into To: do address-book matches appear? Open a conversation with someone the owner has written to before: does the subtitle show "N earlier conversations with …" within a second or two, and does the drafted reply use the right name? Check the background worker's console for a JMAP error on `ContactCard/query` or `Email/query`; if the filter shape is the problem, `src/lib/jmap.ts` is the only place to change.
 4. **In-page pieces on the real page** (open question 8). With a conversation open: does "Reply with AI" appear next to Reply, and does it look right in the toolbar? Click Reply: does the ✦ chip appear in the editor, and does Insert put the text at the cursor, above the quote and signature? Type in the composer: does anything in Fastmail react to the keys? If the toolbar button misbehaves it can be switched off in the settings without losing anything else.
@@ -110,7 +110,7 @@ src/lib/jmap.ts             JMAP client: getThread, recentThreads, correspondenc
 src/lib/claude.ts           one streamed Messages API call
 src/lib/reply.ts            reply target, correspondents, recipients, subject, threading headers, quoting (pure)
 src/lib/prompt.ts           system prompt, fenced thread (participants, budget, quote stripping), fenced history, compose output parsing (pure)
-src/lib/fastmailUrl.ts      tab URL to thread/email id (assumption, see M1 step 2)
+src/lib/fastmailUrl.ts      tab URL to thread/email id (/mail/<Mailbox>/<A…>.<S…>; see DESIGN.md open question 1)
 src/lib/settings.ts         chrome.storage.local wrapper
 src/lib/types.ts            shared types
 tests/lib.test.ts           unit tests for the reply, prompt and JMAP logic

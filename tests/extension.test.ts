@@ -5,7 +5,7 @@ import { reactive } from 'vue';
 import { manifest } from '../scripts/manifest.mjs';
 import { scanText } from '../scripts/scan-secrets.mjs';
 import { streamMessage } from '../src/lib/claude';
-import { buildChat, draftEmail } from '../src/lib/engine';
+import { buildChat, describeConversation, draftEmail } from '../src/lib/engine';
 import { draftsUrl, parseMailContext } from '../src/lib/fastmailUrl';
 import { saveSettings, withDefaults } from '../src/lib/settings';
 import type { Identity, Settings, Thread } from '../src/lib/types';
@@ -83,8 +83,14 @@ describe('rules that must keep holding', () => {
   it('recognises a conversation URL the same way in the page and in the library', () => {
     const literal = /const CONVERSATION_ID = \/(.+)\/;/.exec(read('src/content.ts'))?.[1];
     expect(literal).toBeTruthy();
+    expect(read('src/lib/fastmailUrl.ts')).toContain(`const CONVERSATION_ID = /${literal}/;`);
     const inPage = new RegExp(literal!);
-    for (const path of ['/mail/Inbox/Tabc123def456.M0123456789ab', '/mail/Inbox/', '/mail/Marketing/Team', '/mail/Inbox/M0123456789ab']) {
+    const paths = [
+      '/mail/Inbox/Ab1cD2eF3gH4.Sz9Yx8Wv7Ut6', '/mail/Inbox/Sz9Yx8Wv7Ut6', '/mail/search:x/Ab1cD2eF3gH4.Sz9Yx8Wv7Ut6',
+      '/mail/Inbox/Tabc123def456.M0123456789ab', '/mail/Inbox/M0123456789ab',
+      '/mail/Inbox/', '/mail/Announcements', '/mail/Marketing/Team', '/mail/Inbox/Trips', '/calendar/',
+    ];
+    for (const path of paths) {
       const library = parseMailContext(`https://app.fastmail.com${path}`);
       expect(inPage.test(`${path} `), path).toBe(Boolean(library.threadId || library.emailId));
     }
@@ -139,6 +145,10 @@ describe('Claude client', () => {
 });
 
 describe('drafting engine', () => {
+  it('describes a conversation with where the reply goes', () => {
+    expect(describeConversation(thread, settings).info.to).toBe('Dana <dana@example.com>');
+  });
+
   it('revises from the draft on screen', () => {
     const chat = buildChat({ settings, identity: us, mode: 'reply', thread, instruction: 'Say yes', current: 'Yes!', revision: 'warmer' });
     expect(chat.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);

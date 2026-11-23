@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseMailContext } from '../src/lib/fastmailUrl';
 import { cardPeople, htmlToText, JmapClient } from '../src/lib/jmap';
 import { composeRequest, historyBlock, parseComposeOutput, replyRequest, stripTrailingQuote, systemPrompt, threadBlock } from '../src/lib/prompt';
-import { buildReplyDraft, correspondents, parseAddressList, pickIdentity, pickReplyTarget, replySubject } from '../src/lib/reply';
+import { buildReplyDraft, correspondents, formatAddresses, parseAddressList, pickIdentity, pickReplyTarget, replyRecipients, replySubject } from '../src/lib/reply';
 import type { Correspondence, Email, Identity, Thread } from '../src/lib/types';
 
 const us: Identity = { email: 'us@example.org', name: 'Sam & Alex', voice: 'Warm and brief.' };
@@ -27,19 +27,36 @@ function email(overrides: Partial<Email>): Email {
 }
 
 describe('parseMailContext', () => {
-  it('finds thread and email ids wherever they sit in a Fastmail URL', () => {
+  it('reads the open conversation from a real Fastmail URL: /mail/<Mailbox>/<A thread>.<S email>', () => {
+    expect(parseMailContext('https://app.fastmail.com/mail/Inbox/Ab1cD2eF3gH4.Sz9Yx8Wv7Ut6?u=1a2b3c4d')).toEqual({
+      threadId: 'Ab1cD2eF3gH4',
+      emailId: 'Sz9Yx8Wv7Ut6',
+    });
+    expect(parseMailContext('https://app.fastmail.com/mail/search:dinner%20dana/A_-1cD2eF3gH4.S-_9Yx8Wv7Ut6?u=1a2b3c4d')).toEqual({
+      threadId: 'A_-1cD2eF3gH4',
+      emailId: 'S-_9Yx8Wv7Ut6',
+    });
+    expect(parseMailContext('https://app.fastmail.com/mail/Lists/Family/Ab1cD2eF3gH4?u=1a2b3c4d')).toEqual({ threadId: 'Ab1cD2eF3gH4' });
+    expect(parseMailContext('https://app.fastmail.com/mail/Inbox/Sz9Yx8Wv7Ut6')).toEqual({ emailId: 'Sz9Yx8Wv7Ut6' });
+  });
+
+  it('still accepts the documented T/M hex shape', () => {
     const context = parseMailContext('https://app.fastmail.com/mail/Inbox/Tabc123def456.M0123456789ab?u=1a2b3c4d');
     expect(context).toEqual({ threadId: 'Tabc123def456', emailId: 'M0123456789ab' });
   });
 
   it('returns nothing for a mailbox view or another site', () => {
     expect(parseMailContext('https://app.fastmail.com/mail/Inbox/?u=1a2b3c4d')).toEqual({});
-    expect(parseMailContext('https://example.com/Tabc123def456')).toEqual({});
+    expect(parseMailContext('https://app.fastmail.com/mail/Announcements?u=1a2b3c4d')).toEqual({});
+    expect(parseMailContext('https://app.fastmail.com/mail/Lists/Announcements/?u=1a2b3c4d')).toEqual({});
+    expect(parseMailContext('https://app.fastmail.com/calendar/')).toEqual({});
+    expect(parseMailContext('https://example.com/mail/Inbox/Ab1cD2eF3gH4.Sz9Yx8Wv7Ut6')).toEqual({});
     expect(parseMailContext(undefined)).toEqual({});
   });
 
   it('does not mistake ordinary words for ids', () => {
     expect(parseMailContext('https://app.fastmail.com/mail/Marketing/Team')).toEqual({});
+    expect(parseMailContext('https://app.fastmail.com/mail/Inbox/Trips')).toEqual({});
   });
 });
 
@@ -82,6 +99,18 @@ describe('reply building', () => {
     expect(draft.references).toEqual(['a@example.com', 'b@example.org', 'c@example.com']);
     expect(draft.body.startsWith('Yes!\n\nOn ')).toBe(true);
     expect(draft.body).toContain('> Any news?');
+  });
+
+  it('knows where a reply goes, as text for the To field, and takes an edited To instead', () => {
+    expect(formatAddresses(replyRecipients(latest, [us.email]))).toBe('Dana <dana@example.com>');
+    expect(replyRecipients(ours, [us.email])).toEqual([{ email: 'dana@example.com' }]);
+    const edited = buildReplyDraft({
+      target: latest, identity: us, ownEmails: [us.email], replyAll: true, body: 'Yes!',
+      to: [{ email: 'lee@example.com' }, { email: 'US@example.org' }],
+    });
+    expect(edited.to).toEqual([{ email: 'lee@example.com' }]);
+    expect(edited.cc).toEqual([{ name: 'Dana', email: 'dana@example.com' }]);
+    expect(edited.inReplyTo).toEqual(['c@example.com']);
   });
 
   it('leaves cc empty without reply-all and honours Reply-To', () => {
