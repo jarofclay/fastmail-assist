@@ -99,7 +99,7 @@ export function buildNewDraft(identity: Identity, to: Address[], subject: string
   };
 }
 
-/** "Ann <ann@x.org>, bob@y.org" to addresses. Invalid entries are dropped. */
+/** "Ann <ann@example.org>, bob@example.net" to addresses. Invalid entries are dropped. */
 export function parseAddressList(input: string): Address[] {
   return dedupe(
     input

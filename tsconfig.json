@@ -11,8 +11,9 @@
     "noUncheckedIndexedAccess": true,
     "isolatedModules": true,
     "skipLibCheck": true,
+    "allowJs": true,
     "jsx": "preserve",
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "tests/**/*.ts", "vite.config.ts", "env.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue", "tests/**/*.ts", "scripts/*.mjs", "vite.config.ts", "env.d.ts"]
 }

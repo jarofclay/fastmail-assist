@@ -45,14 +45,21 @@ export interface Identity {
   voice: string;
 }
 
+/** Which pieces of UI the content script adds to the Fastmail page. */
+export interface InPageSettings {
+  /** "Reply with AI" next to Fastmail's own Reply button. Depends on Fastmail's markup. */
+  toolbarButton: boolean;
+  /** The chip shown in the corner of an open draft editor. */
+  editorChip: boolean;
+}
+
 export interface Settings {
   fastmailToken: string;
   anthropicKey: string;
   model: string;
   identities: Identity[];
+  inPage: InPageSettings;
 }
-
-export type Tone = 'default' | 'shorter' | 'warmer' | 'more formal';
 
 /** What gets written to the Drafts mailbox. */
 export interface DraftInput {

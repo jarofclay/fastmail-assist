@@ -42,7 +42,15 @@ interface RawEmail {
   bodyValues?: Record<string, { value: string; isTruncated: boolean }>;
 }
 
-export class JmapError extends Error {}
+export class JmapError extends Error {
+  /** `fatal` marks problems with the token or the connection, as opposed to one missing item. */
+  constructor(
+    message: string,
+    readonly fatal = false,
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Minimal JMAP client. Uses only the core and mail capabilities, so a token
@@ -66,8 +74,8 @@ export class JmapClient {
         ...init?.headers,
       },
     });
-    if (response.status === 401) throw new JmapError('Fastmail rejected the API token.');
-    if (!response.ok) throw new JmapError(`Fastmail returned HTTP ${response.status}.`);
+    if (response.status === 401) throw new JmapError('Fastmail rejected the API token.', true);
+    if (!response.ok) throw new JmapError(`Fastmail returned HTTP ${response.status}.`, true);
     return response.json();
   }
 
@@ -78,7 +86,7 @@ export class JmapClient {
       primaryAccounts: Record<string, string>;
     };
     const accountId = raw.primaryAccounts[MAIL];
-    if (!accountId) throw new JmapError('This API token has no mail access.');
+    if (!accountId) throw new JmapError('This API token has no mail access.', true);
     this.session = { apiUrl: raw.apiUrl, accountId };
     return this.session;
   }

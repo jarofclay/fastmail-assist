@@ -36,3 +36,22 @@ export function parseMailContext(url: string | undefined): MailContext {
   if (email?.[1]) context.emailId = email[1];
   return context;
 }
+
+export function hasConversation(context: MailContext): boolean {
+  return Boolean(context.threadId || context.emailId);
+}
+
+export function sameConversation(a: MailContext, b: MailContext): boolean {
+  if (a.threadId && b.threadId) return a.threadId === b.threadId;
+  return Boolean(a.emailId) && a.emailId === b.emailId;
+}
+
+/** The Drafts folder, keeping Fastmail's `u` parameter so the same account stays selected. */
+export function draftsUrl(currentUrl: string | undefined): string {
+  const url = new URL('https://app.fastmail.com/mail/Drafts/');
+  if (currentUrl && isFastmailUrl(currentUrl)) {
+    const user = new URL(currentUrl).searchParams.get('u');
+    if (user) url.searchParams.set('u', user);
+  }
+  return url.toString();
+}
