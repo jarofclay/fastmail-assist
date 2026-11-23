@@ -66,6 +66,9 @@ export function manifest(target, version) {
         // The open conversation is sent to the Claude API to write the draft.
         data_collection_permissions: { required: ['personalCommunications'] },
       },
+      // Firefox for Android learned the data-collection declaration in 142;
+      // without this AMO's validator warns. Nothing else here is Android-specific.
+      gecko_android: { strict_min_version: '142.0' },
     },
   };
 }

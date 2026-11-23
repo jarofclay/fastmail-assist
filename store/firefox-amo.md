@@ -55,6 +55,8 @@ The build is bundled by Vite, so AMO asks for the source alongside the package. 
 
     An end-to-end test against a stand-in for Fastmail and the Claude API is included: `npm run e2e` (needs Playwright with Chromium).
 
+    Validator warnings: the sidePanel.* calls are Chrome-only and run only when chrome.sidePanel exists (Firefox uses sidebar_action instead); the innerHTML assignment is inside the Vue 3 runtime, not application code.
+
 ## Permissions AMO will show to users
 
 - Access your data for app.fastmail.com

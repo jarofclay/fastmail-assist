@@ -78,6 +78,11 @@ describe('rules that must keep holding', () => {
     }
     expect(manifest('chrome', '1').permissions).toEqual(['sidePanel', 'storage']);
     expect(manifest('firefox', '1').permissions).toEqual(['storage']);
+    // Firefox: the data-collection declaration needs 140 on desktop and 142 on Android.
+    const firefox = manifest('firefox', '1') as { browser_specific_settings?: { gecko: Record<string, unknown>; gecko_android: Record<string, unknown> } };
+    expect(firefox.browser_specific_settings?.gecko.data_collection_permissions).toEqual({ required: ['personalCommunications'] });
+    expect(firefox.browser_specific_settings?.gecko.strict_min_version).toBe('140.0');
+    expect(firefox.browser_specific_settings?.gecko_android.strict_min_version).toBe('142.0');
   });
 
   it('recognises a conversation URL the same way in the page and in the library', () => {

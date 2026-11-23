@@ -2,7 +2,7 @@
 
 A browser extension, for Chrome and Firefox, that brings the one Missive feature worth keeping to Fastmail's web app: say in a line what a reply should say, get a draft in your own voice that knows the whole conversation and the person, and have it land in Fastmail ready to review and send.
 
-Status: v0.4.0. It builds for both browsers, typechecks, passes unit tests, and passes a browser test that loads the Chrome build into Chromium against a stand-in for Fastmail and the Claude API. It has not yet run against the real Fastmail web app, a real account or the real Claude API, and the Firefox build has been loaded in Firefox only far enough to find one bug; milestone 1 below is exactly that.
+Status: v0.4.1. It builds for both browsers, typechecks, passes unit tests, and passes a browser test that loads the Chrome build into Chromium against a stand-in for Fastmail and the Claude API. It has not yet run against the real Fastmail web app, a real account or the real Claude API, and the Firefox build has been loaded in Firefox only far enough to find one bug; milestone 1 below is exactly that.
 
 ## Goals
 
@@ -118,7 +118,7 @@ One codebase. Differences are confined to the manifest and three run-time checks
 | Site access | Granted at install | Can be declined at install; the settings page shows a Grant access button when it is missing. |
 | Install | Load unpacked `dist/chrome` | Temporary add-on from `dist/firefox/manifest.json`, or sign the packaged zip as an unlisted add-on for a permanent install. Minimum Firefox 140. |
 
-The Firefox manifest declares `data_collection_permissions: personalCommunications`, because the open conversation is sent to the Claude API. Mozilla requires this declaration for new add-ons.
+The Firefox manifest declares `data_collection_permissions: personalCommunications`, because the open conversation is sent to the Claude API. Mozilla requires this declaration for new add-ons; it needs Firefox 140 on desktop and 142 on Android, which is why the manifest carries both minimums. AMO's validator still warns about the Chrome-only `sidePanel` calls (guarded at run time) and about `innerHTML` in the Vue runtime; both are warnings, not errors, and are mentioned in the reviewer notes under `store/`.
 
 ## Security and privacy
 

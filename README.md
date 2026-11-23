@@ -119,7 +119,7 @@ Everything for the Chrome Web Store and Firefox Add-ons submissions, listing tex
 
 ## Status
 
-Version 0.4.0 builds for both browsers and passes the unit tests and the browser test. It has not yet been run against a real Fastmail account or the real Claude API; that is milestone M1 in [DESIGN.md](DESIGN.md), which also lists what is still unverified about Fastmail's real page.
+Version 0.4.1 builds for both browsers and passes the unit tests and the browser test. It has not yet been run against a real Fastmail account or the real Claude API; that is milestone M1 in [DESIGN.md](DESIGN.md), which also lists what is still unverified about Fastmail's real page.
 
 ## License
 
