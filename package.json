@@ -1,8 +1,24 @@
 {
   "name": "fastmail-assist",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Fastmail assistant for Chrome and Firefox: give a line of context, get a reply or new email in your voice, inserted into your draft or saved to Drafts.",
+  "license": "MIT",
+  "description": "Browser extension for Fastmail (Chrome and Firefox): say in a line what an email should say and get a draft in your voice, written from the whole conversation into your open draft or saved to Drafts. Never sends.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jarofclay/fastmail-assist.git"
+  },
+  "keywords": [
+    "fastmail",
+    "jmap",
+    "browser-extension",
+    "chrome-extension",
+    "firefox-addon",
+    "claude",
+    "email",
+    "ai-assistant",
+    "manifest-v3"
+  ],
   "type": "module",
   "scripts": {
     "dev": "node scripts/build.mjs --watch",
@@ -12,6 +28,7 @@
     "scan": "node scripts/scan-secrets.mjs",
     "check": "npm run scan && npm run typecheck && npm run test && npm run build",
     "package": "npm run check && node scripts/package.mjs",
+    "release": "node scripts/release.mjs",
     "e2e": "FA_E2E=1 node scripts/build.mjs && node tests/e2e/smoke.mjs",
     "prepare": "git config core.hooksPath .githooks || true"
   },

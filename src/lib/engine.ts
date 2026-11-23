@@ -1,8 +1,8 @@
 import { streamMessage, type ChatMessage } from './claude';
 import { displayName } from './jmap';
 import { composeRequest, defaultShape, parseComposeOutput, replyRequest, systemPrompt, type Mode, type Shape } from './prompt';
-import { pickIdentity, pickReplyTarget } from './reply';
-import type { Email, Identity, Settings, Thread } from './types';
+import { correspondents, pickIdentity, pickReplyTarget } from './reply';
+import type { Address, Correspondence, Email, Identity, Settings, Thread } from './types';
 
 /** What the UI shows about the conversation a reply belongs to. */
 export interface ConversationInfo {
@@ -13,11 +13,15 @@ export interface ConversationInfo {
   suggestedIdentity: string;
 }
 
-export function describeConversation(thread: Thread, settings: Settings): { target: Email; info: ConversationInfo } {
+export function describeConversation(
+  thread: Thread,
+  settings: Settings,
+): { target: Email; info: ConversationInfo; /** Whose earlier mail gives the reply its background. */ with: Address[] } {
   const ownEmails = settings.identities.map((i) => i.email);
   const target = pickReplyTarget(thread, ownEmails);
   return {
     target,
+    with: correspondents(target, ownEmails),
     info: {
       subject: thread.emails[0]?.subject?.trim() || '(no subject)',
       replyTo: displayName(target.from?.[0]),
@@ -36,6 +40,8 @@ export interface DraftRequest {
   thread?: Thread;
   /** Compose mode: who the email is for, as typed. */
   recipients?: string;
+  /** Earlier conversations with the recipient, when the setting is on and any were found. */
+  history?: Correspondence;
   instruction: string;
   /** Set both to revise: the draft as it stands on screen, and what to change. */
   current?: string;
@@ -57,9 +63,9 @@ export function buildChat(request: DraftRequest): ChatMessage[] {
   if (request.mode === 'reply') {
     if (!request.thread) throw new Error('No conversation selected.');
     const target = pickReplyTarget(request.thread, ownEmails);
-    first = replyRequest(request.thread, target, ownEmails, request.instruction);
+    first = replyRequest(request.thread, target, ownEmails, request.instruction, request.history);
   } else {
-    first = composeRequest(request.recipients ?? '', request.instruction);
+    first = composeRequest(request.recipients ?? '', request.instruction, request.history, ownEmails);
   }
   const messages: ChatMessage[] = [{ role: 'user', content: first }];
   if (request.current?.trim() && request.revision?.trim()) {

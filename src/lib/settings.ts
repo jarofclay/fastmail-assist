@@ -13,6 +13,7 @@ export const emptySettings = (): Settings => ({
   model: DEFAULT_MODEL,
   identities: [],
   inPage: { toolbarButton: true, editorChip: true },
+  history: true,
 });
 
 /** Stored settings may predate newer fields, so fill the gaps with defaults. */
@@ -23,6 +24,7 @@ export function withDefaults(stored: Partial<Settings> | undefined): Settings {
     ...stored,
     identities: Array.isArray(stored?.identities) ? stored.identities : base.identities,
     inPage: { ...base.inPage, ...stored?.inPage },
+    history: typeof stored?.history === 'boolean' ? stored.history : base.history,
   };
 }
 

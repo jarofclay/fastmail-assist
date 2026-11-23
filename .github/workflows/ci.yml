@@ -1,0 +1,52 @@
+# Runs on every push to main and on every pull request: the same `npm run
+# check` as before a commit, Mozilla's linter over the Firefox build, and the
+# browser test against the stand-in server. Nothing here touches a real
+# account or key.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Scan, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Lint the Firefox build with web-ext
+        run: npx --yes web-ext lint --source-dir dist/firefox
+      - uses: actions/upload-artifact@v4
+        with:
+          name: builds
+          path: |
+            dist/chrome
+            dist/firefox
+          retention-days: 7
+
+  e2e:
+    name: Browser test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Playwright is not a dependency of the project; the test only needs it
+      # to be require()-able with a Chromium to launch.
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - run: xvfb-run -a npm run e2e

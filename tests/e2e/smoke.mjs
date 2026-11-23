@@ -46,6 +46,10 @@ const step = async (name, run) => {
 const shot = async (page, name) => {
   if (shots) await page.screenshot({ path: join(shots, `${name}.png`) });
 };
+/** Just one element, for the README. */
+const shotOf = async (locator, name) => {
+  if (shots) await locator.screenshot({ path: join(shots, `${name}.png`) });
+};
 
 try {
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
@@ -68,7 +72,7 @@ try {
     await options.getByText('Saved.', { exact: true }).waitFor();
     const tests = options.getByRole('button', { name: 'Test connection' });
     await tests.nth(0).click();
-    await options.getByText('The inbox is readable.').waitFor();
+    await options.getByText(/The inbox is readable\. Contacts are readable/).waitFor();
     await tests.nth(1).click();
     await options.getByText('claude-sonnet-5-5 answered.').waitFor();
   });
@@ -79,6 +83,24 @@ try {
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('https://app.fastmail.com/mail/Inbox/?u=1a2b3c4d');
   const fa = page.locator('#fastmail-assist-root');
+
+  await step('the side panel is enabled for the Fastmail tab only, so a new tab does not show it', async () => {
+    const options = await worker.evaluate(async () => {
+      const [fastmail] = await chrome.tabs.query({ url: 'https://app.fastmail.com/*' });
+      const blank = await chrome.tabs.create({ url: 'about:blank', active: false });
+      const result = {
+        byDefault: await chrome.sidePanel.getOptions({}),
+        fastmail: await chrome.sidePanel.getOptions({ tabId: fastmail.id }),
+        newTab: await chrome.sidePanel.getOptions({ tabId: blank.id }),
+      };
+      await chrome.tabs.remove(blank.id);
+      return result;
+    });
+    assert.equal(options.byDefault.enabled, false);
+    assert.equal(options.fastmail.enabled, true);
+    assert.equal(options.fastmail.path, 'sidepanel.html');
+    assert.equal(options.newTab.enabled, false);
+  });
 
   await step('launcher is shown and follows the open conversation', async () => {
     await fa.locator('.launcher').getByText('Draft with AI').waitFor();
@@ -93,10 +115,11 @@ try {
   });
   await shot(page, 'conversation');
 
-  await step('composer opens with the conversation looked up over JMAP', async () => {
+  await step('composer opens with the conversation looked up over JMAP, then the earlier mail with Dana', async () => {
     await page.locator('[data-fastmail-assist]').click();
     await fa.locator('.title').getByText('Reply to Dana Lee').waitFor();
     assert.match(await fa.locator('.sub').textContent(), /Dinner on the 12th\? · 2 messages/);
+    await fa.locator('.sub').getByText('1 earlier conversation with Dana Lee').waitFor();
   });
 
   await step('typing in the composer does not trigger the page\'s shortcuts', async () => {
@@ -111,11 +134,18 @@ try {
     await fa.getByRole('button', { name: 'Stop' }).waitFor();
     await fa.getByRole('button', { name: /Draft again/ }).waitFor();
     assert.match(await fa.locator('.draft').inputValue(), /^Hi Dana,[\s\S]*Sam & Alex$/);
+    const sent = server.state.claudeRequests.at(-1).body.messages[0].content;
+    // The whole thread, who is in it, and the older conversation as background.
+    assert.match(sent, /People in this conversation: Dana Lee <dana@example.com>, lee@example.com/);
+    assert.match(sent, /Are you two free on the 12th\?[\s\S]*Any news\?/);
+    assert.match(sent, /<history>[\s\S]*Subject: Picnic photos[\s\S]*<\/history>/);
+    assert.ok(sent.indexOf('</thread>') < sent.indexOf('<history>'));
   });
   await shot(page, 'composer-draft');
+  await shotOf(fa.locator('.card'), 'card-reply');
 
   await step('revise sends the draft on screen back with the change', async () => {
-    await fa.locator('input[type=text]').fill('shorter');
+    await fa.getByLabel('Ask for a revision').fill('shorter');
     await page.keyboard.press('Enter');
     await fa.getByRole('button', { name: /Draft again/ }).waitFor();
     const last = server.state.claudeRequests.at(-1).body.messages;
@@ -171,17 +201,43 @@ try {
     await page.keyboard.press('Escape');
   });
 
-  await step('with no conversation, it drafts a new email with a subject', async () => {
+  await step('with no conversation, To suggests people from the address book and finds earlier mail with them', async () => {
     await page.click('#back');
     await fa.locator('.launcher').click();
     await fa.locator('.title').getByText('New email').waitFor();
+    const to = fa.getByRole('combobox', { name: 'To' });
+    await to.click();
+    await page.keyboard.type('da');
+    await fa.getByRole('option', { name: /Dana Lee/ }).waitFor();
+    assert.deepEqual(await fa.locator('.suggest').getByRole('option').allTextContents(), ['Dana Leedana@example.com', 'Daniel Exampledaniel@example.net']);
+    assert.deepEqual(await page.evaluate(() => window.shortcutsFired), []);
+    await shotOf(fa.locator('.card'), 'card-to');
+    await page.keyboard.press('Enter');
+    assert.equal(await to.inputValue(), 'Dana Lee <dana@example.com>');
+    assert.equal(await fa.locator('.suggest').isVisible(), false);
+    await fa.locator('.sub').getByText('2 earlier conversations with Dana Lee').waitFor();
+  });
+
+  await step('it drafts the new email with a subject from that background, and saves it to Drafts', async () => {
     await fa.locator('.instruction').fill('invite Dana to dinner on Friday');
     await fa.getByRole('button', { name: /^Draft/ }).click();
     await fa.getByRole('button', { name: /Draft again/ }).waitFor();
-    assert.equal(await fa.locator('.subject b').textContent(), 'Dinner on Friday');
+    assert.equal(await fa.getByLabel('Subject').inputValue(), 'Dinner on Friday');
     assert.doesNotMatch(await fa.locator('.draft').inputValue(), /Subject:/);
+    const sent = server.state.claudeRequests.at(-1).body.messages[0].content;
+    assert.match(sent, /^<history>[\s\S]*Picnic photos[\s\S]*<\/history>/);
+    assert.match(sent, /Draft a new email to: Dana Lee <dana@example.com>/);
+    await shot(page, 'composer-new');
+    await shotOf(fa.locator('.card'), 'card-new');
+    await fa.getByRole('button', { name: 'Save to Drafts' }).click();
+    await fa.getByText('Saved to Drafts.').waitFor();
+    const draft = server.state.drafts.at(-1);
+    assert.deepEqual(draft.to, [{ name: 'Dana Lee', email: 'dana@example.com' }]);
+    assert.equal(draft.subject, 'Dinner on Friday');
+    assert.equal(draft.inReplyTo, null);
+    assert.match(draft.bodyValues.body.value, /^Hi Dana,/);
+    await page.keyboard.press('Escape');
   });
-  await shot(page, 'composer-new');
 
   // --- Side panel (opened as a tab; Playwright cannot open the real panel) ---
   const panel = await context.newPage();
@@ -209,14 +265,41 @@ try {
     await panel.getByText('Replying to Dana Lee').waitFor();
     assert.equal(await panel.inputValue('#instruction'), 'a note to keep');
     assert.match(await panel.locator('#draft').inputValue(), /^Hi Dana,/);
+    await panel.getByText('1 earlier conversation with Dana Lee').waitFor();
+  });
+
+  await step('side panel: To suggests people, shows the earlier mail with them, and saves a complete new draft', async () => {
+    await panel.getByRole('button', { name: 'New email' }).click();
+    await panel.fill('#recipients', 'dan');
+    const option = panel.getByRole('option', { name: /Dana Lee/ });
+    await option.waitFor();
+    await option.dispatchEvent('mousedown');
+    assert.equal(await panel.inputValue('#recipients'), 'Dana Lee <dana@example.com>');
+    await panel.getByText('2 earlier conversations with Dana Lee').waitFor();
+    await panel.fill('#instruction', 'invite her to dinner on Friday');
+    await panel.getByRole('button', { name: /^Draft/ }).click();
+    await panel.getByRole('button', { name: /Draft again/ }).waitFor();
+    assert.equal(await panel.inputValue('#subject'), 'Dinner on Friday');
+    await shot(panel, 'panel-new');
+    const before = server.state.drafts.length;
+    await panel.getByRole('button', { name: 'Save to Drafts' }).click();
+    await panel.getByText('Saved to Drafts.').waitFor();
+    assert.equal(server.state.drafts.length, before + 1);
+    assert.deepEqual(server.state.drafts.at(-1).to, [{ name: 'Dana Lee', email: 'dana@example.com' }]);
   });
 
   await step('requests carry only what they should', async () => {
     const jmap = JSON.stringify(server.state.jmapRequests);
     assert.ok(!jmap.includes('EmailSubmission') && !jmap.includes('submission') && !jmap.includes('Identity/'));
+    const allowed = ['urn:ietf:params:jmap:core,urn:ietf:params:jmap:mail', 'urn:ietf:params:jmap:core,urn:ietf:params:jmap:contacts'];
     for (const request of server.state.jmapRequests) {
-      assert.deepEqual(request.using, ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail']);
+      assert.ok(allowed.includes(request.using.join(',')), request.using.join(','));
+      // The contacts capability is used for contact lookups only.
+      if (request.using.includes('urn:ietf:params:jmap:contacts')) {
+        assert.ok(request.methodCalls.every(([name]) => name.startsWith('ContactCard/')), JSON.stringify(request.methodCalls.map((c) => c[0])));
+      }
     }
+    assert.ok(server.state.jmapRequests.some((r) => r.methodCalls[0]?.[0] === 'ContactCard/query'));
     const claude = server.state.claudeRequests.find((r) => r.body.stream);
     assert.equal(claude.headers['x-api-key'], 'test-key');
     assert.equal(claude.headers['anthropic-dangerous-direct-browser-access'], 'true');
@@ -238,6 +321,7 @@ try {
     await card.getByRole('button', { name: /^Draft/ }).click();
     await card.getByRole('button', { name: /Draft again/ }).waitFor();
     await shot(dark, 'composer-dark');
+    await shotOf(card.locator('.card'), 'card-reply-dark');
   }
 
   console.log(`\n${steps.length} steps passed.`);

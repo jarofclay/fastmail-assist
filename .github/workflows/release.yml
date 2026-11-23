@@ -1,0 +1,39 @@
+# Pushing a tag like v0.3.0 builds both extensions, checks them, and publishes
+# a GitHub release with the two zips attached and the matching section of
+# CHANGELOG.md as the notes. `npm run release` creates the tag locally after
+# the same checks.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check that the tag, package.json and CHANGELOG.md agree
+        run: node scripts/release-notes.mjs --check "$GITHUB_REF_NAME"
+      - name: Check, build and zip both extensions
+        run: npm run package
+      - name: Write the release notes
+        run: node scripts/release-notes.mjs "$GITHUB_REF_NAME" > release-notes.md
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/fastmail-assist-chrome-*.zip dist/fastmail-assist-firefox-*.zip \
+            --title "Fastmail Assist $GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag
