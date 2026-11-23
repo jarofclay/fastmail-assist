@@ -19,6 +19,7 @@ const showKey = ref(false);
 const fastmail = ref<Check>({ state: 'idle', text: '' });
 const claude = ref<Check>({ state: 'idle', text: '' });
 const saveNote = ref('');
+const saveError = ref('');
 /** Firefox lets people decline site access at install; without it nothing works. */
 const hasAccess = ref(true);
 
@@ -59,7 +60,13 @@ async function save() {
       .map((i) => ({ email: i.email.trim(), name: i.name.trim(), voice: i.voice.trim() }))
       .filter((i) => i.email),
   };
-  await saveSettings(cleaned);
+  saveError.value = '';
+  try {
+    await saveSettings(cleaned);
+  } catch (e) {
+    saveError.value = `Could not save: ${(e as Error).message}`;
+    return;
+  }
   settings.value = cleaned;
   savedJson.value = JSON.stringify(cleaned);
   saveNote.value = 'Saved.';
@@ -192,7 +199,8 @@ const testClaude = () =>
     </section>
 
     <div class="savebar">
-      <span v-if="saveNote" class="ok" role="status">{{ saveNote }}</span>
+      <span v-if="saveError" class="error" role="alert">{{ saveError }}</span>
+      <span v-else-if="saveNote" class="ok" role="status">{{ saveNote }}</span>
       <span v-else-if="dirty" class="muted">Unsaved changes</span>
       <button class="btn primary" :disabled="!dirty || Boolean(identityProblem)" @click="save">Save settings</button>
     </div>

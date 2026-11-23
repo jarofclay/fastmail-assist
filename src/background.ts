@@ -9,7 +9,7 @@ import { draftEmail, describeConversation } from './lib/engine';
 import { draftsUrl, hasConversation, isFastmailUrl, parseMailContext, type MailContext } from './lib/fastmailUrl';
 import { JmapClient, JmapError } from './lib/jmap';
 import { buildReplyDraft } from './lib/reply';
-import { isConfigured, loadSettings } from './lib/settings';
+import { isConfigured, loadSettings, onSettingsChanged } from './lib/settings';
 import type { Settings, Thread } from './lib/types';
 
 /** Firefox has a sidebar instead of Chrome's side panel. */
@@ -40,6 +40,16 @@ function features(settings: Settings): FA.Features {
     canOpenPanel: hasSidePanel,
   };
 }
+
+// Saved settings reach every open Fastmail tab at once, so a composer that was
+// left open asking for keys stops asking without a reload.
+onSettingsChanged((settings) => {
+  const message: FA.ToTab = { type: 'fa:features', features: features(settings) };
+  chrome.tabs.query({ url: 'https://app.fastmail.com/*' }).then(
+    (tabs) => tabs.forEach((tab) => tab.id !== undefined && chrome.tabs.sendMessage(tab.id, message).catch(() => undefined)),
+    () => undefined,
+  );
+});
 
 const fromFastmailTab = (sender: chrome.runtime.MessageSender) =>
   sender.id === chrome.runtime.id && sender.tab?.id !== undefined && isFastmailUrl(sender.url ?? sender.tab.url);

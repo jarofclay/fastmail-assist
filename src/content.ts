@@ -630,8 +630,20 @@
       return;
     }
     const rect = target.el.getBoundingClientRect();
-    const x = Math.min(rect.right, innerWidth) - 40;
-    const y = Math.min(rect.bottom, innerHeight) - 40;
+    let x = Math.min(rect.right, innerWidth) - 40;
+    let y = Math.min(rect.bottom, innerHeight) - 40;
+    // A draft editor that reaches the corner of the window puts the chip on
+    // top of the launcher; step to the left of it, or above it, or give way.
+    if (!launcher.hidden) {
+      const pill = launcher.getBoundingClientRect();
+      const overlaps = () => x < pill.right + 8 && x + 30 > pill.left - 8 && y < pill.bottom + 8 && y + 30 > pill.top - 8;
+      if (overlaps()) x = pill.left - 40;
+      if (x < rect.left) {
+        x = Math.min(rect.right, innerWidth) - 40;
+        y = pill.top - 40;
+      }
+      if (overlaps()) y = -1;
+    }
     chip.hidden = y < rect.top || y < 0 || x < rect.left;
     chip.style.left = `${x}px`;
     chip.style.top = `${y}px`;
@@ -856,9 +868,24 @@
   window.addEventListener('resize', placeChip, { passive: true });
 
   chrome.runtime.onMessage.addListener((message: FA.ToTab) => {
-    if (message?.type !== 'fa:toggle-composer') return;
-    if (state.open) closeComposer();
-    else openComposer();
+    if (message?.type === 'fa:toggle-composer') {
+      if (state.open) closeComposer();
+      else openComposer();
+    } else if (message?.type === 'fa:features') {
+      // Settings were saved, perhaps while this composer sat open asking for
+      // them: take the new features and, if it is open, the new identities.
+      state.features = message.features;
+      if (state.open) loadContext();
+      else render();
+    }
+  });
+
+  // Coming back to this tab after a visit to the settings page: re-check,
+  // in case the push above did not reach a tab that was in the background.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || state.dead) return;
+    if (state.open) loadContext();
+    else void oneShot({ type: 'fa:hello' }).then((answer) => answer && ((state.features = answer as FA.Features), render()));
   });
 
   /** Fastmail is a single-page app: watch the address and the page for changes. */

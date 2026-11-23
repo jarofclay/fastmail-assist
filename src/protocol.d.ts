@@ -14,7 +14,7 @@ declare namespace FA {
     | { type: 'fa:hello' };
 
   /** Sent by the background to a tab (chrome.tabs.sendMessage). */
-  type ToTab = { type: 'fa:toggle-composer' };
+  type ToTab = { type: 'fa:toggle-composer' } | { type: 'fa:features'; features: Features };
 
   interface Features {
     configured: boolean;
