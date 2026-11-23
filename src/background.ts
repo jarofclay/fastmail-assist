@@ -20,6 +20,8 @@ declare const browser:
 const hasSidePanel = typeof chrome.sidePanel !== 'undefined';
 const sidebar = typeof browser !== 'undefined' ? browser.sidebarAction : undefined;
 
+const FASTMAIL_TABS = 'https://app.fastmail.com/*';
+
 chrome.runtime.onInstalled.addListener(() => {
   if (hasSidePanel) void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   // storage.local is readable from content scripts unless restricted. Firefox
@@ -27,10 +29,50 @@ chrome.runtime.onInstalled.addListener(() => {
   void chrome.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' });
 });
 
-// Firefox: the toolbar button toggles the sidebar. Chrome handles this itself.
-if (!hasSidePanel && sidebar) {
-  chrome.action.onClicked.addListener(() => void sidebar.toggle());
+// --- Chrome: the side panel belongs to Fastmail tabs ---------------------------
+//
+// Chrome's side panel is window-wide by default: once open, it shows in every
+// tab of the window, new tabs included. So the default panel is switched off
+// and a tab-specific one is enabled on Fastmail tabs only. Without the "tabs"
+// permission a tab's URL is readable only on Fastmail, so a navigation whose
+// URL cannot be read means the tab is somewhere else.
+
+const enablePanel = (tabId: number) => chrome.sidePanel.setOptions({ tabId, path: 'sidepanel.html', enabled: true }).catch(() => undefined);
+const disablePanel = (tabId: number) => chrome.sidePanel.setOptions({ tabId, enabled: false }).catch(() => undefined);
+
+if (hasSidePanel) {
+  // Runs each time the worker starts: side panel options do not outlive the browser session.
+  void chrome.sidePanel.setOptions({ enabled: false });
+  chrome.tabs.query({ url: FASTMAIL_TABS }).then(
+    (tabs) => tabs.forEach((tab) => tab.id !== undefined && void enablePanel(tab.id)),
+    () => undefined,
+  );
+  chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+    if (change.status !== 'loading' && change.url === undefined) return;
+    void (isFastmailUrl(change.url ?? tab.url) ? enablePanel(tabId) : disablePanel(tabId));
+  });
 }
+
+/** Bring a Fastmail tab to the front, or open one, for the panel to live in. */
+async function focusFastmail(): Promise<void> {
+  const [existing] = await chrome.tabs.query({ url: FASTMAIL_TABS });
+  if (existing?.id !== undefined) {
+    await chrome.tabs.update(existing.id, { active: true });
+    await chrome.windows.update(existing.windowId, { focused: true });
+  } else {
+    await chrome.tabs.create({ url: 'https://app.fastmail.com/' });
+  }
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  if (hasSidePanel) {
+    // On a Fastmail tab Chrome itself toggles the panel (openPanelOnActionClick).
+    if (!isFastmailUrl(tab.url)) void focusFastmail().catch(() => undefined);
+  } else if (sidebar) {
+    // Firefox: the toolbar button toggles the sidebar.
+    void sidebar.toggle();
+  }
+});
 
 function features(settings: Settings): FA.Features {
   return {
@@ -72,7 +114,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
 chrome.commands.onCommand.addListener((command, tab) => {
   if (tab?.id === undefined) return;
   if (command === 'open-panel' && hasSidePanel) {
-    void chrome.sidePanel.open({ tabId: tab.id });
+    if (isFastmailUrl(tab.url)) void chrome.sidePanel.open({ tabId: tab.id });
+    else void focusFastmail().catch(() => undefined);
   } else if (command === 'quick-draft') {
     const message: FA.ToTab = { type: 'fa:toggle-composer' };
     chrome.tabs.sendMessage(tab.id, message).catch(() => undefined);

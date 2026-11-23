@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/jarofclay/fastmail-assist/actions/workflows/ci.yml/badge.svg)](https://github.com/jarofclay/fastmail-assist/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/jarofclay/fastmail-assist?display_name=tag&sort=semver)](https://github.com/jarofclay/fastmail-assist/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A browser extension for [Fastmail](https://www.fastmail.com)'s web app, for Chrome and Firefox. Say in one line what an email should say, and get a draft in your own voice that already knows the whole conversation and who you are writing to. The draft lands in the Fastmail draft you have open, or in your Drafts folder. You review and send it in Fastmail. The extension cannot send mail.
 
@@ -69,7 +70,7 @@ Use both **Test connection** buttons. The Fastmail one also says whether contact
 | Where | How |
 | --- | --- |
 | Inside Fastmail | **Reply with AI** next to Reply, the floating button bottom right, or **Alt+Shift+D**. With a draft open, the reply-arrow button in the editor's corner opens the composer too, and the composer offers **Insert into draft**. |
-| Side panel / sidebar | **Alt+Shift+R**, or the toolbar icon. Picks up the conversation open in the tab, or lists recent ones. |
+| Side panel / sidebar | **Alt+Shift+R**, or the toolbar icon. Picks up the conversation open in the tab, or lists recent ones. In Chrome the panel belongs to Fastmail tabs: it does not follow you into other tabs, and the icon or shortcut on another tab brings you to Fastmail. |
 | Shortcuts in the composer | **Ctrl/⌘+Enter** drafts, **Enter** in the revision box revises, **Esc** closes. Nothing you type reaches Fastmail's own shortcuts. |
 
 The "Reply with AI" toolbar button and the editor chip depend on Fastmail's page markup and can each be switched off in the settings; the floating button and Save to Drafts work without touching the page.
@@ -116,4 +117,6 @@ tests/                      unit tests, and tests/e2e for the browser test
 
 Version 0.3.0 builds for both browsers and passes the unit tests and the browser test. It has not yet been run against a real Fastmail account or the real Claude API; that is milestone M1 in [DESIGN.md](DESIGN.md), which also lists what is still unverified about Fastmail's real page.
 
-Fastmail Assist is an independent project, not affiliated with Fastmail or Anthropic.
+## License
+
+[MIT](LICENSE). Fastmail Assist is an independent project, not affiliated with Fastmail or Anthropic.

@@ -112,7 +112,7 @@ One codebase. Differences are confined to the manifest and three run-time checks
 
 | | Chrome | Firefox |
 | --- | --- | --- |
-| Panel | `side_panel`, opened from the page via `chrome.sidePanel.open()` | `sidebar_action`; opened with the toolbar button or Alt+Shift+R. A click in the page cannot open it, so the composer hides that button. |
+| Panel | `side_panel`, enabled per tab for Fastmail tabs only (the default is off, so a new tab does not show it), opened from the page via `chrome.sidePanel.open()` or by the toolbar icon | `sidebar_action`, a per-window sidebar that Firefox keeps open across tabs by design; opened with the toolbar button or Alt+Shift+R. A click in the page cannot open it, so the composer hides that button. |
 | Background | Service worker | Event page (`background.scripts`) |
 | Storage lock | `storage.local.setAccessLevel('TRUSTED_CONTEXTS')` | Not available. The content script never reads storage, and page scripts cannot reach extension storage in either browser. |
 | Site access | Granted at install | Can be declined at install; the settings page shows a Grant access button when it is missing. |

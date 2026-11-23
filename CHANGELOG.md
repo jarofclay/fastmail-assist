@@ -16,6 +16,11 @@ Releases are published from tags: see "Releasing" in the README.
 - **Save a complete new email to Drafts from the page.** With a To address, the in-page composer saves a new email with To, an editable Subject and the body to Fastmail Drafts, like the side panel already did.
 - **Releases.** A CI workflow runs the checks and the browser test on every pull request; pushing a `v*` tag builds, packages and publishes a GitHub release with the Chrome and Firefox zips attached. `npm run release` tags a release locally after the same checks.
 - README rewritten with screenshots, a privacy section and install steps from a release.
+- MIT license.
+
+### Fixed
+
+- In Chrome, the side panel followed you into every tab of the window, including new ones. It is now a tab-specific panel enabled only on Fastmail tabs; the toolbar icon or Alt+Shift+R on another tab brings a Fastmail tab to the front instead.
 
 ### Changed
 

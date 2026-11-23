@@ -84,6 +84,24 @@ try {
   await page.goto('https://app.fastmail.com/mail/Inbox/?u=1a2b3c4d');
   const fa = page.locator('#fastmail-assist-root');
 
+  await step('the side panel is enabled for the Fastmail tab only, so a new tab does not show it', async () => {
+    const options = await worker.evaluate(async () => {
+      const [fastmail] = await chrome.tabs.query({ url: 'https://app.fastmail.com/*' });
+      const blank = await chrome.tabs.create({ url: 'about:blank', active: false });
+      const result = {
+        byDefault: await chrome.sidePanel.getOptions({}),
+        fastmail: await chrome.sidePanel.getOptions({ tabId: fastmail.id }),
+        newTab: await chrome.sidePanel.getOptions({ tabId: blank.id }),
+      };
+      await chrome.tabs.remove(blank.id);
+      return result;
+    });
+    assert.equal(options.byDefault.enabled, false);
+    assert.equal(options.fastmail.enabled, true);
+    assert.equal(options.fastmail.path, 'sidepanel.html');
+    assert.equal(options.newTab.enabled, false);
+  });
+
   await step('launcher is shown and follows the open conversation', async () => {
     await fa.locator('.launcher').getByText('Draft with AI').waitFor();
     await page.click('#open');
