@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { testKey } from '../lib/claude';
 import { JmapClient } from '../lib/jmap';
-import { DEFAULT_MODEL, SUGGESTED_MODELS, emptySettings, loadSettings, saveSettings } from '../lib/settings';
+import { DEFAULT_MODEL, SUGGESTED_MODELS, emptySettings, isConfigured, loadSettings, saveSettings } from '../lib/settings';
 import type { Settings } from '../lib/types';
 
 const ORIGINS = ['https://app.fastmail.com/*', 'https://api.fastmail.com/*', 'https://api.anthropic.com/*'];
@@ -24,6 +24,18 @@ const saveError = ref('');
 const hasAccess = ref(true);
 
 const dirty = computed(() => JSON.stringify(settings.value) !== savedJson.value);
+/** What is still missing for the extension to work, judged on what is saved. */
+const missing = computed(() => {
+  if (!savedJson.value) return '';
+  const saved = JSON.parse(savedJson.value) as Settings;
+  if (isConfigured(saved)) return '';
+  const parts = [
+    !saved.fastmailToken && 'a Fastmail token',
+    !saved.anthropicKey && 'a Claude key',
+    saved.identities.length === 0 && 'at least one identity',
+  ].filter(Boolean) as string[];
+  return `Not ready yet: still needs ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`}.`;
+});
 const identityProblem = computed(() => {
   const filled = settings.value.identities.filter((i) => i.email.trim());
   if (filled.some((i) => !/^[^\s@]+@[^\s@]+$/.test(i.email.trim()))) return 'One of the identities has an invalid email address.';
@@ -158,7 +170,10 @@ const testClaude = () =>
 
     <section class="card">
       <h2>Identities</h2>
-      <p class="muted">The addresses you write from, and how each one sounds. The voice notes go into every draft request.</p>
+      <p class="muted">
+        The addresses you write from, and how each one sounds. The voice notes go into every draft request.
+        <strong>At least one identity is required</strong>: without one the extension is not set up, even with both keys in place.
+      </p>
       <div v-for="(item, index) in settings.identities" :key="index" class="card soft identity">
         <div class="row wrap">
           <div class="grow field">
@@ -202,6 +217,8 @@ const testClaude = () =>
       <span v-if="saveError" class="error" role="alert">{{ saveError }}</span>
       <span v-else-if="saveNote" class="ok" role="status">{{ saveNote }}</span>
       <span v-else-if="dirty" class="muted">Unsaved changes</span>
+      <span v-else-if="missing" class="muted" role="status">{{ missing }}</span>
+      <span v-else class="ok" role="status">Ready. Fastmail Assist is set up.</span>
       <button class="btn primary" :disabled="!dirty || Boolean(identityProblem)" @click="save">Save settings</button>
     </div>
   </main>
