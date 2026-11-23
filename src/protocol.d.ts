@@ -35,6 +35,8 @@ declare namespace FA {
     ref: Ref;
     subject: string;
     replyTo: string;
+    /** Where the reply goes, prefilled in the To field: "Dana Lee <dana@example.org>". */
+    to: string;
     messageCount: number;
     suggestedIdentity: string;
   }
@@ -60,7 +62,17 @@ declare namespace FA {
         revision?: string;
       }
     | { type: 'cancel'; id: number }
-    | { type: 'save'; id: number; ref: Ref; identityEmail: string; replyAll: boolean; body: string; pageUrl: string }
+    | {
+        type: 'save';
+        id: number;
+        ref: Ref;
+        identityEmail: string;
+        replyAll: boolean;
+        body: string;
+        pageUrl: string;
+        /** The To field as edited by the owner; absent when left as prefilled. */
+        to?: string;
+      }
     | { type: 'save-new'; id: number; identityEmail: string; to: string; subject: string; body: string; pageUrl: string }
     /** Who matches what was typed into the To field so far. */
     | { type: 'people'; id: number; query: string }

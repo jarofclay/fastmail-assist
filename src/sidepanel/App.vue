@@ -22,6 +22,8 @@ const loading = ref(false);
 const identityEmail = ref('');
 const replyAll = ref(false);
 const recipients = ref('');
+/** True once the owner has changed the prefilled To of a reply. */
+const toEdited = ref(false);
 const toField = ref<HTMLInputElement | null>(null);
 /** Address-book matches for the entry being typed in To, and the highlighted one. */
 const people = ref<Person[]>([]);
@@ -71,6 +73,8 @@ async function openConversation(next: MailContext, keepDraft = false) {
   if (!keepDraft) {
     resetDraft();
     instruction.value = '';
+    toEdited.value = false;
+    recipients.value = '';
   }
   await loadThread();
 }
@@ -80,6 +84,8 @@ function setMode(next: Mode) {
   mode.value = next;
   resetDraft();
   history.value = null;
+  toEdited.value = false;
+  recipients.value = next === 'reply' ? (conversation.value?.info.to ?? '') : '';
   if (next === 'compose') void loadComposeHistory();
   else void loadReplyHistory();
 }
@@ -131,6 +137,7 @@ let peopleSeq = 0;
 function onRecipientsInput() {
   clearTimeout(peopleTimer);
   clearTimeout(historyTimer);
+  if (mode.value === 'reply') toEdited.value = true;
   const entry = currentEntry();
   if (entry.text.length < 2) {
     people.value = [];
@@ -149,7 +156,7 @@ function onRecipientsInput() {
       }
     }, 160);
   }
-  historyTimer = window.setTimeout(() => void loadComposeHistory(), 500);
+  if (mode.value === 'compose') historyTimer = window.setTimeout(() => void loadComposeHistory(), 500);
 }
 
 function pickPerson(person: Person) {
@@ -164,7 +171,7 @@ function pickPerson(person: Person) {
   listOpen.value = false;
   clearTimeout(peopleTimer);
   clearTimeout(historyTimer);
-  void loadComposeHistory();
+  if (mode.value === 'compose') void loadComposeHistory();
   requestAnimationFrame(() => {
     toField.value?.focus();
     toField.value?.setSelectionRange(head.length, head.length);
@@ -211,7 +218,11 @@ async function loadThread() {
       thread.value = await client.value.getThread(context.value);
       const suggested = conversation.value?.info.suggestedIdentity;
       if (suggested) identityEmail.value = suggested;
-      if (mode.value === 'reply') void loadReplyHistory();
+      if (mode.value === 'reply') {
+        // The reply goes to the message's sender, unless the owner changed it.
+        if (!toEdited.value) recipients.value = conversation.value?.info.to ?? '';
+        void loadReplyHistory();
+      }
     } else {
       thread.value = null;
       recent.value = await client.value.recentThreads();
@@ -288,6 +299,11 @@ async function saveDraft() {
   try {
     if (mode.value === 'reply') {
       if (!conversation.value) return;
+      const edited = toEdited.value ? parseAddressList(recipients.value) : undefined;
+      if (edited && edited.length === 0) {
+        error.value = 'Add at least one valid address in To.';
+        return;
+      }
       await client.value.createDraft(
         buildReplyDraft({
           target: conversation.value.target,
@@ -295,6 +311,7 @@ async function saveDraft() {
           ownEmails: ownEmails.value,
           replyAll: replyAll.value,
           body: draft.value,
+          to: edited,
         }),
       );
       notice.value = 'Saved to Drafts, threaded onto this conversation.';
@@ -348,6 +365,7 @@ interface Stash {
   identityEmail: string;
   replyAll: boolean;
   recipients: string;
+  toEdited?: boolean;
   subject: string;
   instruction: string;
   draft: string;
@@ -361,6 +379,7 @@ async function restore(): Promise<boolean> {
   context.value = stored.context;
   replyAll.value = stored.replyAll;
   recipients.value = stored.recipients;
+  toEdited.value = Boolean(stored.toEdited);
   subject.value = stored.subject;
   instruction.value = stored.instruction;
   draft.value = stored.draft;
@@ -370,7 +389,7 @@ async function restore(): Promise<boolean> {
 }
 
 let stashTimer = 0;
-watch([mode, context, identityEmail, replyAll, recipients, subject, instruction, draft], () => {
+watch([mode, context, identityEmail, replyAll, recipients, toEdited, subject, instruction, draft], () => {
   if (!ready.value) return;
   clearTimeout(stashTimer);
   stashTimer = window.setTimeout(() => {
@@ -381,6 +400,7 @@ watch([mode, context, identityEmail, replyAll, recipients, subject, instruction,
       identityEmail: identityEmail.value,
       replyAll: replyAll.value,
       recipients: recipients.value,
+      toEdited: toEdited.value,
       subject: subject.value,
       instruction: instruction.value,
       draft: draft.value,
@@ -473,14 +493,14 @@ onMounted(async () => {
         </template>
       </template>
 
-      <div v-if="mode === 'compose'">
+      <div v-if="showForm">
         <label for="recipients">To</label>
         <input
           id="recipients"
           ref="toField"
           v-model="recipients"
           type="text"
-          placeholder="Name or address; your contacts fill in as you type"
+          :placeholder="mode === 'compose' ? 'Name or address; your contacts fill in as you type' : ''"
           autocomplete="off"
           spellcheck="false"
           role="combobox"
@@ -504,7 +524,7 @@ onMounted(async () => {
             <span v-if="person.name" class="addr">{{ person.email }}</span>
           </li>
         </ul>
-        <p v-if="historyNote" class="muted" style="margin-top: 6px">{{ historyNote }}</p>
+        <p v-if="historyNote && mode === 'compose'" class="muted" style="margin-top: 6px">{{ historyNote }}</p>
       </div>
 
       <template v-if="showForm">

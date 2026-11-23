@@ -119,6 +119,8 @@ try {
     await page.locator('[data-fastmail-assist]').click();
     await fa.locator('.title').getByText('Reply to Dana Lee').waitFor();
     assert.match(await fa.locator('.sub').textContent(), /Dinner on the 12th\? · 2 messages/);
+    // The reply's To is filled in from the conversation, not typed.
+    assert.equal(await fa.getByRole('combobox', { name: 'To' }).inputValue(), 'Dana Lee <dana@example.com>');
     await fa.locator('.sub').getByText('1 earlier conversation with Dana Lee').waitFor();
   });
 
@@ -247,6 +249,7 @@ try {
   await step('side panel: pick a recent conversation, draft, save', async () => {
     await panel.getByText('Dana Lee').first().click();
     await panel.getByText('Replying to Dana Lee').waitFor();
+    assert.equal(await panel.inputValue('#recipients'), 'Dana Lee <dana@example.com>');
     await panel.fill('#instruction', 'yes, and we bring dessert');
     await panel.getByRole('button', { name: /^Draft/ }).click();
     await panel.getByRole('button', { name: /Draft again/ }).waitFor();
@@ -270,6 +273,7 @@ try {
 
   await step('side panel: To suggests people, shows the earlier mail with them, and saves a complete new draft', async () => {
     await panel.getByRole('button', { name: 'New email' }).click();
+    assert.equal(await panel.inputValue('#recipients'), '');
     await panel.fill('#recipients', 'dan');
     const option = panel.getByRole('option', { name: /Dana Lee/ });
     await option.waitFor();

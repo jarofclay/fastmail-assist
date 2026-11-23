@@ -1,20 +1,21 @@
 /**
  * Works out which conversation is open from the Fastmail tab URL.
  *
- * ASSUMPTION TO VERIFY (see DESIGN.md, open question 1): Fastmail's web app
- * puts JMAP ids in the URL, a thread id starting with "T" and an email id
- * starting with "M", each followed by hex digits. The parser is deliberately
- * loose about where in the URL they sit. If the format turns out different,
- * this file is the only place to change, and the panel's "recent threads"
- * picker keeps working without it.
+ * Fastmail's web app puts the open conversation in the path, after the
+ * mailbox: `/mail/<Mailbox>/<threadId>.<emailId>?u=<user>`. Its JMAP ids are
+ * short base64-style strings; thread ids start with "A" and email ids with
+ * "S" (confirmed on a real account, milestone M1). The older documentation
+ * shape, "T" and "M" followed by hex, is accepted as well. Only the segment
+ * after a mailbox is looked at, so a mailbox called "Announcements" is not an
+ * id, and a wrong guess costs one failed lookup, never a wrong draft. The
+ * same literal is repeated in src/content.ts; a unit test keeps them equal.
  */
 export interface MailContext {
   threadId?: string;
   emailId?: string;
 }
 
-const THREAD_ID = /(?:^|[^A-Za-z0-9])(T[0-9a-f]{8,})(?![A-Za-z0-9])/;
-const EMAIL_ID = /(?:^|[^A-Za-z0-9])(M[0-9a-f]{8,})(?![A-Za-z0-9])/;
+const CONVERSATION_ID = /\/mail\/[^?#\s]+?\/(?:(T[0-9a-f]{8,}|A[A-Za-z0-9_-]{8,})(?:\.(M[0-9a-f]{8,}|S[A-Za-z0-9_-]{8,}))?|(M[0-9a-f]{8,}|S[A-Za-z0-9_-]{8,}))(?=[\s?#]|$)/;
 
 export function isFastmailUrl(url: string | undefined): boolean {
   if (!url) return false;
@@ -28,12 +29,12 @@ export function isFastmailUrl(url: string | undefined): boolean {
 export function parseMailContext(url: string | undefined): MailContext {
   if (!url || !isFastmailUrl(url)) return {};
   const { pathname, hash } = new URL(url);
-  const haystack = `${pathname} ${hash}`;
+  const match = CONVERSATION_ID.exec(`${pathname} ${hash}`);
+  if (!match) return {};
   const context: MailContext = {};
-  const thread = THREAD_ID.exec(haystack);
-  const email = EMAIL_ID.exec(haystack);
-  if (thread?.[1]) context.threadId = thread[1];
-  if (email?.[1]) context.emailId = email[1];
+  if (match[1]) context.threadId = match[1];
+  const emailId = match[2] ?? match[3];
+  if (emailId) context.emailId = emailId;
   return context;
 }
 

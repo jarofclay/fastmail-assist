@@ -1,13 +1,15 @@
 import { streamMessage, type ChatMessage } from './claude';
 import { displayName } from './jmap';
 import { composeRequest, defaultShape, parseComposeOutput, replyRequest, systemPrompt, type Mode, type Shape } from './prompt';
-import { correspondents, pickIdentity, pickReplyTarget } from './reply';
+import { correspondents, formatAddresses, pickIdentity, pickReplyTarget, replyRecipients } from './reply';
 import type { Address, Correspondence, Email, Identity, Settings, Thread } from './types';
 
 /** What the UI shows about the conversation a reply belongs to. */
 export interface ConversationInfo {
   subject: string;
   replyTo: string;
+  /** Where the reply goes, as text for a To field: "Dana Lee <dana@example.org>". */
+  to: string;
   messageCount: number;
   /** Email of the identity the conversation was addressed to. */
   suggestedIdentity: string;
@@ -25,6 +27,7 @@ export function describeConversation(
     info: {
       subject: thread.emails[0]?.subject?.trim() || '(no subject)',
       replyTo: displayName(target.from?.[0]),
+      to: formatAddresses(replyRecipients(target, ownEmails)),
       messageCount: thread.emails.length,
       suggestedIdentity: pickIdentity(target, settings.identities)?.email ?? '',
     },

@@ -2,7 +2,7 @@
 
 A browser extension, for Chrome and Firefox, that brings the one Missive feature worth keeping to Fastmail's web app: say in a line what a reply should say, get a draft in your own voice that knows the whole conversation and the person, and have it land in Fastmail ready to review and send.
 
-Status: v0.3.0. It builds for both browsers, typechecks, passes unit tests, and passes a browser test that loads the Chrome build into Chromium against a stand-in for Fastmail and the Claude API. It has not yet run against the real Fastmail web app, a real account or the real Claude API, and the Firefox build has been loaded in Firefox only far enough to find one bug; milestone 1 below is exactly that.
+Status: v0.3.1. It builds for both browsers, typechecks, passes unit tests, and passes a browser test that loads the Chrome build into Chromium against a stand-in for Fastmail and the Claude API. It has not yet run against the real Fastmail web app, a real account or the real Claude API, and the Firefox build has been loaded in Firefox only far enough to find one bug; milestone 1 below is exactly that.
 
 ## Goals
 
@@ -26,7 +26,7 @@ Status: v0.3.0. It builds for both browsers, typechecks, passes unit tests, and 
 In the Fastmail page:
 
 1. Open a conversation. **Reply with AI** appears next to Fastmail's Reply button, and as a floating button bottom right. Either opens the composer, a small card in the corner of the page; so does Alt+Shift+D.
-2. The composer shows who the reply goes to, the subject, how many messages the conversation has, and, a moment later, how many earlier conversations with that person it found. Type the instruction ("yes to the 12th, ask if they can host"), choose the From identity if the suggested one is wrong, press **Draft**. The text streams in.
+2. The composer shows who the reply goes to (To is prefilled from the message, editable), the subject, how many messages the conversation has, and, a moment later, how many earlier conversations with that person it found. Type the instruction ("yes to the 12th, ask if they can host"), choose the From identity if the suggested one is wrong, press **Draft**. The text streams in.
 3. Edit it directly, or ask for a revision ("shorter", "in German").
 4. Finish one of two ways:
    - **Insert into draft.** Click Reply in Fastmail (before or after drafting). The composer notices the open editor and offers Insert, which writes the text at the cursor. Fastmail keeps handling recipients, the quoted original and the signature. A ✦ button in the corner of any open draft editor opens the composer the same way.
@@ -62,7 +62,7 @@ The side panel (Chrome) or sidebar (Firefox), Alt+Shift+R, has the same flow wit
 | Side panel | `src/sidepanel/App.vue` | The full workflow with recent conversations and new-email form. |
 | Options page | `src/options/Options.vue` | Fastmail token, Claude key, model, identities with voice notes, connection tests, switches for the in-page extras. |
 | Engine | `src/lib/engine.ts` | Builds the model request, streams the draft, splits subject from body. Shared by background and panel. |
-| URL parser | `src/lib/fastmailUrl.ts` | Tab URL to thread and email id. |
+| URL parser | `src/lib/fastmailUrl.ts` | Tab URL to thread and email id (`/mail/<Mailbox>/<A…>.<S…>`). |
 | JMAP client | `src/lib/jmap.ts` | Session, read a thread, list recent threads, earlier mail with an address, people matching a typed name (contacts and recent correspondents), create a draft. |
 | Reply logic | `src/lib/reply.ts` | Pick the message to answer, recipients, who the earlier mail is with, subject, threading headers, quoted original. Pure functions. |
 | Prompt | `src/lib/prompt.ts` | System prompt per identity, the fenced thread with its participants and size budget, the fenced history, compose output parsing. Pure functions. |
@@ -141,7 +141,7 @@ The Firefox manifest declares `data_collection_permissions: personalCommunicatio
 
 ## Open questions (to settle in Milestone 1)
 
-1. **URL format.** The parser assumes ids like `T…` and `M…` (hex) appear in the Fastmail URL. Check against real URLs in conversation view, reading-pane view, search results and with a draft open; adjust `fastmailUrl.ts`, the copy of the pattern in `content.ts`, and the tests.
+1. **URL format.** Answered in v0.3.1. An open conversation is `https://app.fastmail.com/mail/<Mailbox>/<threadId>.<emailId>?u=<8 hex>`; Fastmail's ids are twelve base64url characters, thread ids starting with `A`, email ids with `S`, mailbox ids with `P` (seen on the owner's account over JMAP; the URL layout matches the notes of the [blorp](https://github.com/tanem/blorp/issues/21) project). The thread id alone in the path shows the mailbox list, not the thread. `fastmailUrl.ts` reads the segment after the mailbox and also accepts the older documented `T…`/`M…` hex shape. Still to confirm at the keyboard: the URL with a draft open, and in search results.
 2. **Token scopes in practice.** Confirm the token screen allows mail access without sending, and that such a token can create drafts.
 3. **Draft visibility.** Confirm a JMAP-created draft shows up in the open conversation without a reload. If not, the "Open Drafts" link shown after saving is the way to it.
 4. **Signatures.** Insert into draft sidesteps this: Fastmail's composer adds the signature itself. A draft saved over JMAP still has none. Options for that path: put the sign-off in the voice notes (current approach), or read signatures via `Identity/get`, which needs the submission scope and so weakens the cannot-send guarantee.
