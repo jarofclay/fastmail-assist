@@ -1,15 +1,19 @@
 {
   "name": "fastmail-assist",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Chrome side-panel assistant for Fastmail: give a line of context, get a reply or new email saved as a draft.",
+  "description": "Fastmail assistant for Chrome and Firefox: give a line of context, get a reply or new email in your voice, inserted into your draft or saved to Drafts.",
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch --mode development",
-    "build": "vite build",
+    "dev": "node scripts/build.mjs --watch",
+    "build": "node scripts/build.mjs",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "scan": "node scripts/scan-secrets.mjs",
+    "check": "npm run scan && npm run typecheck && npm run test && npm run build",
+    "package": "npm run check && node scripts/package.mjs",
+    "e2e": "FA_E2E=1 node scripts/build.mjs && node tests/e2e/smoke.mjs",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "vue": "^3.5.45"
@@ -18,6 +22,7 @@
     "@types/chrome": "^0.3.7",
     "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.11",
+    "squire-rte": "^2.4.11",
     "typescript": "^6.0.3",
     "vite": "^8.3.8",
     "vitest": "^5.1.0",

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Refuse to push if a key, token or real email address is in the tree or in
+# any commit about to leave this machine. Installed by `npm install`
+# (the "prepare" script points core.hooksPath at this folder).
+exec node scripts/scan-secrets.mjs --push

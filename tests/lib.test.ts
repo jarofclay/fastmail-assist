@@ -70,7 +70,7 @@ describe('reply building', () => {
   it('picks the identity the message was sent to', () => {
     const other: Identity = { email: 'me@example.net', name: 'Sam', voice: '' };
     expect(pickIdentity(latest, [other, us])?.email).toBe(us.email);
-    expect(pickIdentity(email({ to: [{ email: 'x@y.z' }] }), [other, us])?.email).toBe(other.email);
+    expect(pickIdentity(email({ to: [{ email: 'someone@example.net' }] }), [other, us])?.email).toBe(other.email);
   });
 
   it('threads the draft and never copies ourselves', () => {
@@ -97,9 +97,9 @@ describe('reply building', () => {
   });
 
   it('parses a typed recipient list', () => {
-    expect(parseAddressList('Ann Lee <ann@x.org>, bob@y.org; not-an-address, ANN@x.org')).toEqual([
-      { name: 'Ann Lee', email: 'ann@x.org' },
-      { email: 'bob@y.org' },
+    expect(parseAddressList('Ann Lee <ann@example.org>, bob@example.net; not-an-address, ANN@example.org')).toEqual([
+      { name: 'Ann Lee', email: 'ann@example.org' },
+      { email: 'bob@example.net' },
     ]);
   });
 });

@@ -4,11 +4,16 @@ import type { Email, Identity, Thread } from './types';
 
 export type Mode = 'reply' | 'compose';
 
+/** What the model returns: just the body, or a subject line followed by the body. */
+export type Shape = 'body' | 'subject+body';
+
+export const defaultShape = (mode: Mode): Shape => (mode === 'reply' ? 'body' : 'subject+body');
+
 /** Keep the prompt bounded on very long conversations. */
 const MAX_THREAD_EMAILS = 12;
 const MAX_EMAIL_CHARS = 6_000;
 
-export function systemPrompt(identity: Identity, mode: Mode): string {
+export function systemPrompt(identity: Identity, mode: Mode, shape: Shape = defaultShape(mode)): string {
   const lines = [
     `You draft emails for ${identity.name} <${identity.email}>. They review and send every draft themselves.`,
     '',
@@ -24,8 +29,8 @@ export function systemPrompt(identity: Identity, mode: Mode): string {
   }
   lines.push(
     '',
-    mode === 'reply'
-      ? 'Output the reply body only, from greeting to sign-off, with nothing before or after it.'
+    shape === 'body'
+      ? `Output the ${mode === 'reply' ? 'reply' : 'email'} body only, from greeting to sign-off, with nothing before or after it.`
       : 'Output exactly: a first line "Subject: <subject>", a blank line, then the email body from greeting to sign-off. Nothing else.',
   );
   return lines.join('\n');
