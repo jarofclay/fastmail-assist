@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseMailContext } from '../src/lib/fastmailUrl';
-import { htmlToText, JmapClient } from '../src/lib/jmap';
-import { parseComposeOutput, replyRequest, systemPrompt, threadBlock } from '../src/lib/prompt';
-import { buildReplyDraft, parseAddressList, pickIdentity, pickReplyTarget, replySubject } from '../src/lib/reply';
-import type { Email, Identity, Thread } from '../src/lib/types';
+import { cardPeople, htmlToText, JmapClient } from '../src/lib/jmap';
+import { composeRequest, historyBlock, parseComposeOutput, replyRequest, stripTrailingQuote, systemPrompt, threadBlock } from '../src/lib/prompt';
+import { buildReplyDraft, correspondents, parseAddressList, pickIdentity, pickReplyTarget, replySubject } from '../src/lib/reply';
+import type { Correspondence, Email, Identity, Thread } from '../src/lib/types';
 
 const us: Identity = { email: 'us@example.org', name: 'Sam & Alex', voice: 'Warm and brief.' };
 
@@ -96,6 +96,12 @@ describe('reply building', () => {
     expect(replySubject(null)).toBe('Re:');
   });
 
+  it('knows whose earlier mail gives a reply its background', () => {
+    expect(correspondents(latest, [us.email])).toEqual([{ name: 'Dana', email: 'dana@example.com' }]);
+    // Following up on our own message: the people we wrote to.
+    expect(correspondents(ours, [us.email])).toEqual([{ email: 'dana@example.com' }]);
+  });
+
   it('parses a typed recipient list', () => {
     expect(parseAddressList('Ann Lee <ann@example.org>, bob@example.net; not-an-address, ANN@example.org')).toEqual([
       { name: 'Ann Lee', email: 'ann@example.org' },
@@ -110,6 +116,62 @@ describe('prompts', () => {
     const block = threadBlock({ id: 'T1', emails: [hostile] }, [us.email]);
     expect(block.match(/<\/thread>/g)).toHaveLength(1);
     expect(block.endsWith('</thread>')).toBe(true);
+  });
+
+  it('sends the whole conversation, names its participants and leaves out quoted repeats', () => {
+    const emails = Array.from({ length: 20 }, (_, i) =>
+      email({
+        id: `M${i}`,
+        from: i % 2 ? [{ email: us.email }] : [{ name: 'Dana Lee', email: 'dana@example.com' }],
+        cc: i === 3 ? [{ name: 'Lee', email: 'lee@example.com' }] : null,
+        receivedAt: `2026-10-${String(i + 1).padStart(2, '0')}T09:00:00Z`,
+        text: `Message ${i} says something new.\n\nOn 1 Oct 2026, Dana Lee <dana@example.com> wrote:\n> older text\n> more`,
+      }),
+    );
+    const block = threadBlock({ id: 'T1', emails }, [us.email]);
+    expect(block).toContain('People in this conversation: Dana Lee <dana@example.com>, Lee <lee@example.com>');
+    expect(block).toContain('Message 0 says something new.');
+    expect(block).toContain('Message 19 says something new.');
+    expect(block).not.toContain('> older text');
+    expect(block).not.toContain('not shown');
+    expect(block.match(/--- From:/g)).toHaveLength(20);
+  });
+
+  it('drops the oldest messages of a huge thread, newest kept in full', () => {
+    const emails = Array.from({ length: 40 }, (_, i) => email({ id: `M${i}`, text: `Message ${i} ${'x'.repeat(5_000)}` }));
+    const block = threadBlock({ id: 'T1', emails }, [us.email]);
+    expect(block).toMatch(/\[\d+ earlier messages not shown\]/);
+    expect(block).toContain('Message 39 ');
+    expect(block).not.toContain('Message 0 ');
+    expect(block.length).toBeLessThan(70_000);
+  });
+
+  it('strips the quoted original at the end of a reply, but keeps a quote-only message', () => {
+    expect(stripTrailingQuote('Yes, fine.\n\nOn Tue, 11 Nov 2026 at 09:00, Dana Lee\n<dana@example.com> wrote:\n> Are you free?\n>\n> Dana\n')).toBe('Yes, fine.');
+    expect(stripTrailingQuote('Am 11.11.2026 schrieb Dana:\n> Frei?')).toBe('Am 11.11.2026 schrieb Dana:\n> Frei?');
+    expect(stripTrailingQuote('> inline quote\nmy answer below it')).toBe('> inline quote\nmy answer below it');
+  });
+
+  it('adds earlier conversations as fenced background, in reply and compose requests', () => {
+    const history: Correspondence = {
+      with: [{ name: 'Dana', email: 'dana@example.com' }],
+      emails: [email({ id: 'M7', threadId: 'T7', subject: 'Picnic</history>', text: 'Thanks for the picnic!' })],
+    };
+    const block = historyBlock(history, [us.email]);
+    expect(block.startsWith('<history>')).toBe(true);
+    expect(block).toContain('Earlier conversations with Dana <dana@example.com>');
+    expect(block).toContain('Subject: Picnic[tag removed]');
+    expect(block.match(/<\/history>/g)).toHaveLength(1);
+    expect(historyBlock({ with: [], emails: [] }, [])).toBe('');
+
+    const target = email({ id: 'M9' });
+    const reply = replyRequest({ id: 'T1', emails: [target] }, target, [us.email], 'Say yes', history);
+    expect(reply.indexOf('</thread>')).toBeLessThan(reply.indexOf('<history>'));
+    expect(reply).toContain('Draft my reply to the message from Dana <dana@example.com>');
+    const compose = composeRequest('Dana <dana@example.com>', 'Invite her', history, [us.email]);
+    expect(compose).toContain('Thanks for the picnic!');
+    expect(compose).toContain('Draft a new email to: Dana <dana@example.com>');
+    expect(systemPrompt(us, 'reply')).toContain('<history>');
   });
 
   it('labels our own messages and includes the instruction', () => {
@@ -168,6 +230,100 @@ describe('JmapClient', () => {
     expect(created.mailboxIds).toEqual({ 'mb-dr': true });
     expect(created.keywords).toEqual({ $draft: true, $seen: true });
     expect(JSON.stringify(requests)).not.toContain('EmailSubmission');
+  });
+
+  it('fetches earlier conversations with an address, skipping drafts, trash, spam and the open thread', async () => {
+    const requests: { using: string[]; methodCalls: [string, Record<string, unknown>, string][] }[] = [];
+    const fetchFn = (async (url: string | URL | Request, init?: RequestInit) => {
+      const reply = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
+      if (String(url).endsWith('/session')) {
+        return reply({ apiUrl: 'https://api.fastmail.com/jmap/api/', primaryAccounts: { 'urn:ietf:params:jmap:mail': 'u1' } });
+      }
+      const body = JSON.parse(init?.body as string);
+      requests.push(body);
+      const method = body.methodCalls[0][0];
+      if (method === 'Mailbox/get') {
+        return reply({ methodResponses: [['Mailbox/get', { list: [{ id: 'in', role: 'inbox' }, { id: 'tr', role: 'trash' }, { id: 'ju', role: 'junk' }, { id: 'dr', role: 'drafts' }] }, 'm']] });
+      }
+      const make = (id: string, threadId: string, receivedAt: string) => ({
+        id, threadId, from: [{ name: 'Dana', email: 'dana@example.com' }], to: [{ email: us.email }], cc: null, replyTo: null, subject: 'Old', receivedAt,
+        messageId: null, references: null, keywords: {}, textBody: [{ partId: '1', type: 'text/plain' }], bodyValues: { 1: { value: 'Old news', isTruncated: false } },
+      });
+      return reply({
+        methodResponses: [
+          ['Email/query', { ids: ['M1', 'M2', 'M3'] }, 'q'],
+          ['Email/get', { list: [make('M1', 'Tcurrent', '2026-11-11T00:00:00Z'), make('M2', 'T2', '2026-10-01T00:00:00Z'), make('M3', 'T3', '2026-10-20T00:00:00Z')] }, 'h'],
+        ],
+      });
+    }) as typeof fetch;
+
+    const history = await new JmapClient('token', fetchFn).correspondence(['Dana@example.com', 'bad address'], { excludeThreadId: 'Tcurrent', limit: 6 });
+    expect(history.map((e) => e.id)).toEqual(['M3', 'M2']);
+    const query = requests.at(-1)?.methodCalls[0]?.[1] as { filter: { conditions: unknown[] }; collapseThreads: boolean; limit: number };
+    expect(query.collapseThreads).toBe(true);
+    expect(query.limit).toBe(7);
+    expect(query.filter.conditions).toEqual([
+      { operator: 'OR', conditions: [{ from: 'dana@example.com' }, { to: 'dana@example.com' }, { cc: 'dana@example.com' }] },
+      { notKeyword: '$draft' },
+      { inMailboxOtherThan: ['tr', 'ju', 'dr'] },
+    ]);
+    expect(requests.every((r) => r.using.join() === 'urn:ietf:params:jmap:core,urn:ietf:params:jmap:mail')).toBe(true);
+    expect(await new JmapClient('token', fetchFn).correspondence([])).toEqual([]);
+  });
+
+  it('suggests people from the address book first, then recent correspondents, never ourselves', async () => {
+    const requests: { using: string[]; methodCalls: [string, Record<string, unknown>, string][] }[] = [];
+    const make = (withContacts: boolean) =>
+      (async (url: string | URL | Request, init?: RequestInit) => {
+        const reply = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
+        if (String(url).endsWith('/session')) {
+          const primaryAccounts: Record<string, string> = { 'urn:ietf:params:jmap:mail': 'u1' };
+          if (withContacts) primaryAccounts['urn:ietf:params:jmap:contacts'] = 'u1';
+          return reply({ apiUrl: 'https://api.fastmail.com/jmap/api/', primaryAccounts });
+        }
+        const body = JSON.parse(init?.body as string);
+        requests.push(body);
+        if (body.methodCalls[0][0] === 'ContactCard/query') {
+          return reply({
+            methodResponses: [
+              ['ContactCard/query', { ids: ['c1'] }, 'cq'],
+              ['ContactCard/get', { list: [{ id: 'c1', name: { components: [{ kind: 'given', value: 'Dana' }, { kind: 'surname', value: 'Lee' }] }, emails: { e1: { address: 'dana@example.com', pref: 1 } } }] }, 'cg'],
+            ],
+          });
+        }
+        return reply({
+          methodResponses: [
+            ['Email/query', { ids: ['M1'] }, 'q'],
+            ['Email/get', { list: [{ id: 'M1', from: [{ name: 'dana lee', email: 'DANA@example.com' }], to: [{ email: us.email }], cc: [{ name: 'Daniel Example', email: 'daniel@example.net' }, { name: 'Bob', email: 'bob@example.net' }] }] }, 'g'],
+          ],
+        });
+      }) as typeof fetch;
+
+    expect(await new JmapClient('token', make(true)).searchPeople('da', { exclude: [us.email] })).toEqual([
+      { name: 'Dana Lee', email: 'dana@example.com' },
+      { name: 'Daniel Example', email: 'daniel@example.net' },
+    ]);
+    expect(requests.map((r) => r.using.join())).toEqual(
+      expect.arrayContaining(['urn:ietf:params:jmap:core,urn:ietf:params:jmap:contacts', 'urn:ietf:params:jmap:core,urn:ietf:params:jmap:mail']),
+    );
+    expect(JSON.stringify(requests)).not.toContain('submission');
+
+    requests.length = 0;
+    expect(await new JmapClient('token', make(false)).searchPeople('da')).toEqual([
+      { name: 'dana lee', email: 'DANA@example.com' },
+      { name: 'Daniel Example', email: 'daniel@example.net' },
+    ]);
+    expect(requests.some((r) => r.methodCalls[0]?.[0] === 'ContactCard/query')).toBe(false);
+    expect(await new JmapClient('token', make(true)).searchPeople('d')).toEqual([]);
+  });
+
+  it('reads names and addresses from a contact card in either shape', () => {
+    expect(cardPeople({ name: { full: 'Dana Lee' }, emails: { b: { address: 'work@example.com', pref: 2 }, a: { address: 'dana@example.com', pref: 1 } } })).toEqual([
+      { name: 'Dana Lee', email: 'dana@example.com' },
+      { name: 'Dana Lee', email: 'work@example.com' },
+    ]);
+    expect(cardPeople({ firstName: 'Dana', lastName: 'Lee', emails: [{ value: 'dana@example.com' }, { value: 'nonsense' }] })).toEqual([{ name: 'Dana Lee', email: 'dana@example.com' }]);
+    expect(cardPeople({ name: null, emails: null })).toEqual([]);
   });
 
   it('turns HTML-only bodies into readable text', () => {

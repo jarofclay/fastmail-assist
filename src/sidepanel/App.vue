@@ -6,7 +6,7 @@ import { JmapClient } from '../lib/jmap';
 import type { Mode } from '../lib/prompt';
 import { buildNewDraft, buildReplyDraft, parseAddressList } from '../lib/reply';
 import { emptySettings, isConfigured, loadSettings, onSettingsChanged } from '../lib/settings';
-import type { Settings, Thread, ThreadSummary } from '../lib/types';
+import type { Correspondence, Person, Settings, Thread, ThreadSummary } from '../lib/types';
 
 const settings = ref<Settings>(emptySettings());
 const ready = ref(false);
@@ -22,6 +22,13 @@ const loading = ref(false);
 const identityEmail = ref('');
 const replyAll = ref(false);
 const recipients = ref('');
+const toField = ref<HTMLInputElement | null>(null);
+/** Address-book matches for the entry being typed in To, and the highlighted one. */
+const people = ref<Person[]>([]);
+const active = ref(-1);
+const listOpen = ref(false);
+/** Earlier conversations with the recipient, given to the model as background. */
+const history = ref<Correspondence | null>(null);
 const subject = ref('');
 const instruction = ref('');
 const draft = ref('');
@@ -42,6 +49,12 @@ const conversation = computed(() => (thread.value ? describeConversation(thread.
 const client = computed(() => new JmapClient(settings.value.fastmailToken));
 const showForm = computed(() => mode.value === 'compose' || Boolean(conversation.value));
 const shortcut = /Mac/i.test(navigator.platform) ? '⌘↵' : 'Ctrl↵';
+const historyNote = computed(() => {
+  const found = history.value;
+  if (!found || found.emails.length === 0) return '';
+  const n = found.emails.length;
+  return `${n} earlier conversation${n === 1 ? '' : 's'} with ${found.with.map((a) => a.name?.trim() || a.email).join(', ')}`;
+});
 
 function resetDraft() {
   abort?.abort();
@@ -66,6 +79,114 @@ function setMode(next: Mode) {
   if (mode.value === next) return;
   mode.value = next;
   resetDraft();
+  history.value = null;
+  if (next === 'compose') void loadComposeHistory();
+  else void loadReplyHistory();
+}
+
+// --- Earlier conversations with the recipient ---------------------------------
+
+async function loadReplyHistory() {
+  history.value = null;
+  const found = conversation.value;
+  if (!settings.value.history || !found || !thread.value) return;
+  const threadId = thread.value.id;
+  try {
+    const emails = await client.value.correspondence(found.with.map((a) => a.email), { excludeThreadId: threadId });
+    if (thread.value?.id === threadId) history.value = { with: found.with, emails };
+  } catch {
+    // Background only; the reply works without it.
+  }
+}
+
+let historyFor = '';
+async function loadComposeHistory() {
+  const to = parseAddressList(recipients.value);
+  const key = to.map((a) => a.email.toLowerCase()).join(',');
+  if (key === historyFor && history.value) return;
+  historyFor = key;
+  history.value = null;
+  if (!settings.value.history || to.length === 0) return;
+  try {
+    const emails = await client.value.correspondence(to.map((a) => a.email));
+    if (historyFor === key) history.value = { with: to, emails };
+  } catch {
+    // Background only.
+  }
+}
+
+// --- The To field, with help from the address book --------------------------
+
+/** The entry the caret is in: everything since the last comma. */
+function currentEntry(): { start: number; end: number; text: string } {
+  const value = recipients.value;
+  const caret = toField.value?.selectionStart ?? value.length;
+  const start = Math.max(value.lastIndexOf(',', caret - 1), value.lastIndexOf(';', caret - 1)) + 1;
+  return { start, end: caret, text: value.slice(start, caret).trim() };
+}
+
+let peopleTimer = 0;
+let historyTimer = 0;
+let peopleSeq = 0;
+function onRecipientsInput() {
+  clearTimeout(peopleTimer);
+  clearTimeout(historyTimer);
+  const entry = currentEntry();
+  if (entry.text.length < 2) {
+    people.value = [];
+    listOpen.value = false;
+  } else {
+    peopleTimer = window.setTimeout(async () => {
+      const seq = ++peopleSeq;
+      try {
+        const found = await client.value.searchPeople(entry.text, { exclude: ownEmails.value });
+        if (seq !== peopleSeq) return;
+        people.value = found;
+        active.value = found.length > 0 ? 0 : -1;
+        listOpen.value = found.length > 0;
+      } catch {
+        people.value = [];
+      }
+    }, 160);
+  }
+  historyTimer = window.setTimeout(() => void loadComposeHistory(), 500);
+}
+
+function pickPerson(person: Person) {
+  const entry = currentEntry();
+  const value = recipients.value;
+  const formatted = person.name ? `${person.name} <${person.email}>` : person.email;
+  const before = value.slice(0, entry.start).trim();
+  const after = value.slice(entry.end).replace(/^\s*[,;]?\s*/, '').trim();
+  const head = `${before ? `${before} ` : ''}${formatted}`;
+  recipients.value = after ? `${head}, ${after}` : head;
+  people.value = [];
+  listOpen.value = false;
+  clearTimeout(peopleTimer);
+  clearTimeout(historyTimer);
+  void loadComposeHistory();
+  requestAnimationFrame(() => {
+    toField.value?.focus();
+    toField.value?.setSelectionRange(head.length, head.length);
+  });
+}
+
+function onRecipientsKeydown(event: KeyboardEvent) {
+  if (!listOpen.value || people.value.length === 0) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const n = people.value.length;
+    active.value = (active.value + (event.key === 'ArrowDown' ? 1 : -1) + n) % n;
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    const person = people.value[active.value];
+    if (person) {
+      event.preventDefault();
+      pickPerson(person);
+    }
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    listOpen.value = false;
+  }
 }
 
 /** Follow the conversation open in Fastmail, without discarding work in progress. */
@@ -90,6 +211,7 @@ async function loadThread() {
       thread.value = await client.value.getThread(context.value);
       const suggested = conversation.value?.info.suggestedIdentity;
       if (suggested) identityEmail.value = suggested;
+      if (mode.value === 'reply') void loadReplyHistory();
     } else {
       thread.value = null;
       recent.value = await client.value.recentThreads();
@@ -129,6 +251,7 @@ async function generate(revision?: string) {
       mode: mode.value,
       thread: thread.value ?? undefined,
       recipients: recipients.value,
+      history: history.value ?? undefined,
       instruction: instruction.value,
       ...(revision ? { current, revision } : {}),
       signal: controller.signal,
@@ -282,6 +405,7 @@ onMounted(async () => {
   await readActiveTab();
   // Nothing restored and no conversation open in the tab: show recent ones.
   if (!restored && !hasConversation(context.value)) await loadThread();
+  if (restored && mode.value === 'compose') void loadComposeHistory();
 });
 </script>
 
@@ -290,8 +414,8 @@ onMounted(async () => {
     <header>
       <span class="mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-          <path d="M10 2.5l1.7 4.9a2 2 0 0 0 1.2 1.2l4.9 1.7-4.9 1.7a2 2 0 0 0-1.2 1.2L10 18.1l-1.7-4.9a2 2 0 0 0-1.2-1.2L2.2 10.3l4.9-1.7a2 2 0 0 0 1.2-1.2z" />
-          <path d="M18.5 14.5l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" />
+          <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />
+          <path d="M19 1.6Q19 5 22.4 5Q19 5 19 8.4Q19 5 15.6 5Q19 5 19 1.6Z" />
         </svg>
       </span>
       <h1 class="grow">Fastmail Assist</h1>
@@ -326,7 +450,7 @@ onMounted(async () => {
           <strong class="truncate">{{ conversation.info.subject }}</strong>
           <div class="muted">
             Replying to {{ conversation.info.replyTo }} · {{ conversation.info.messageCount }}
-            message{{ conversation.info.messageCount === 1 ? '' : 's' }}
+            message{{ conversation.info.messageCount === 1 ? '' : 's' }}<template v-if="historyNote"> · {{ historyNote }}</template>
           </div>
           <button class="link" style="font-size: 12.5px" @click="openConversation({})">Choose another conversation</button>
         </div>
@@ -351,7 +475,36 @@ onMounted(async () => {
 
       <div v-if="mode === 'compose'">
         <label for="recipients">To</label>
-        <input id="recipients" v-model="recipients" type="text" placeholder="name@example.org, …" />
+        <input
+          id="recipients"
+          ref="toField"
+          v-model="recipients"
+          type="text"
+          placeholder="Name or address; your contacts fill in as you type"
+          autocomplete="off"
+          spellcheck="false"
+          role="combobox"
+          aria-autocomplete="list"
+          :aria-expanded="listOpen"
+          aria-controls="people"
+          @input="onRecipientsInput"
+          @keydown="onRecipientsKeydown"
+          @focus="listOpen = people.length > 0"
+          @blur="listOpen = false"
+        />
+        <ul v-if="listOpen" id="people" class="suggest" role="listbox" aria-label="Matching people">
+          <li
+            v-for="(person, index) in people"
+            :key="person.email"
+            role="option"
+            :aria-selected="index === active"
+            @mousedown.prevent="pickPerson(person)"
+          >
+            <span class="name">{{ person.name || person.email }}</span>
+            <span v-if="person.name" class="addr">{{ person.email }}</span>
+          </li>
+        </ul>
+        <p v-if="historyNote" class="muted" style="margin-top: 6px">{{ historyNote }}</p>
       </div>
 
       <template v-if="showForm">

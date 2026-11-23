@@ -1,6 +1,10 @@
 // Renders public/icons/icon-*.png from the SVG below. Run it only when the
 // icon changes; the PNGs are committed. Needs Playwright with Chromium:
 //   node scripts/make-icons.mjs
+//
+// The mark is a reply arrow with a sparkle: Fastmail's Reply, with the AI
+// flair. The same two paths are used at 24px in src/content.ts and the Vue
+// pages.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -16,9 +20,10 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
     </linearGradient>
   </defs>
   <rect width="128" height="128" rx="28" fill="url(#g)"/>
-  <g fill="#fff" transform="translate(64 64) scale(4.6) translate(-11.2 -11.2)">
-    <path d="M10 2.5l1.7 4.9a2 2 0 0 0 1.2 1.2l4.9 1.7-4.9 1.7a2 2 0 0 0-1.2 1.2L10 18.1l-1.7-4.9a2 2 0 0 0-1.2-1.2L2.2 10.3l4.9-1.7a2 2 0 0 0 1.2-1.2z"/>
-    <path d="M18.5 14.5l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/>
+  <g fill="#fff" transform="translate(64 66) scale(4.3) translate(-12 -12)">
+    <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+    <path d="M19 1.6Q19 5 22.4 5Q19 5 19 8.4Q19 5 15.6 5Q19 5 19 1.6Z"/>
+    <path d="M14.2 1.2Q14.2 3 16 3Q14.2 3 14.2 4.8Q14.2 3 12.4 3Q14.2 3 14.2 1.2Z" opacity="0.85"/>
   </g>
 </svg>`;
 

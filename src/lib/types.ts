@@ -3,6 +3,12 @@ export interface Address {
   email: string;
 }
 
+/** Someone you could write to: an address-book entry or a recent correspondent. */
+export interface Person {
+  name: string;
+  email: string;
+}
+
 /** The subset of a JMAP Email (RFC 8621) this extension reads. */
 export interface Email {
   id: string;
@@ -37,6 +43,17 @@ export interface ThreadSummary {
   preview: string;
 }
 
+/**
+ * Earlier mail exchanged with the people an email is for: the newest message
+ * of each recent conversation with them, apart from the one being answered.
+ * Background for the model, so it knows who it is writing to.
+ */
+export interface Correspondence {
+  with: Address[];
+  /** Newest first. */
+  emails: Email[];
+}
+
 /** A sending identity and the voice to write in when using it. */
 export interface Identity {
   email: string;
@@ -59,6 +76,8 @@ export interface Settings {
   model: string;
   identities: Identity[];
   inPage: InPageSettings;
+  /** Also read recent earlier conversations with the recipient, and give them to the model as background. */
+  history: boolean;
 }
 
 /** What gets written to the Drafts mailbox. */

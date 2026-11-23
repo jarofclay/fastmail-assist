@@ -96,8 +96,13 @@ async function run(check: typeof fastmail, action: () => Promise<string>) {
 
 const testFastmail = () =>
   run(fastmail, async () => {
-    const threads = await new JmapClient(settings.value.fastmailToken.trim()).recentThreads(1);
-    return `Connected. ${threads.length ? 'The inbox is readable.' : 'The inbox is empty.'}`;
+    const client = new JmapClient(settings.value.fastmailToken.trim());
+    const threads = await client.recentThreads(1);
+    const { contacts } = await client.capabilities();
+    return [
+      `Connected. ${threads.length ? 'The inbox is readable.' : 'The inbox is empty.'}`,
+      contacts ? 'Contacts are readable, so To will suggest your address book.' : 'No Contacts scope: To will suggest recent correspondents only.',
+    ].join(' ');
   });
 
 const testClaude = () =>
@@ -113,8 +118,8 @@ const testClaude = () =>
     <header>
       <span class="mark" style="width: 36px; height: 36px; border-radius: 11px" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-          <path d="M10 2.5l1.7 4.9a2 2 0 0 0 1.2 1.2l4.9 1.7-4.9 1.7a2 2 0 0 0-1.2 1.2L10 18.1l-1.7-4.9a2 2 0 0 0-1.2-1.2L2.2 10.3l4.9-1.7a2 2 0 0 0 1.2-1.2z" />
-          <path d="M18.5 14.5l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" />
+          <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />
+          <path d="M19 1.6Q19 5 22.4 5Q19 5 19 8.4Q19 5 15.6 5Q19 5 19 1.6Z" />
         </svg>
       </span>
       <div>
@@ -139,8 +144,9 @@ const testClaude = () =>
         </div>
       </div>
       <p class="muted">
-        Create one in Fastmail under Settings → Privacy &amp; Security → Manage API tokens. Give it mail access and leave
-        out sending (email submission), so this extension can save drafts but can never send.
+        Create one in Fastmail under Settings → Privacy &amp; Security → Manage API tokens. Tick <strong>Email</strong>, and
+        <strong>Contacts and contact groups</strong> if you want the To field to suggest people from your address book.
+        Leave <strong>Email submission</strong> unticked, so this extension can save drafts but can never send.
       </p>
       <div class="row wrap">
         <button class="btn" :disabled="!settings.fastmailToken.trim() || fastmail.state === 'busy'" @click="testFastmail">Test connection</button>
@@ -197,6 +203,19 @@ const testClaude = () =>
       </div>
       <div><button class="btn" @click="addIdentity">Add identity</button></div>
       <p v-if="identityProblem" class="error" role="alert">{{ identityProblem }}</p>
+    </section>
+
+    <section class="card">
+      <h2>Context</h2>
+      <p class="muted">
+        Every draft is written from the whole open conversation. This adds the recent earlier conversations with the
+        person you are writing to (the latest message of up to six), so the draft knows the history and their name.
+      </p>
+      <label class="check">
+        <input v-model="settings.history" type="checkbox" />
+        Read earlier conversations with the recipient as background
+      </label>
+      <p class="muted">That mail goes to the Claude API along with the open conversation. Turn it off to send only the open conversation.</p>
     </section>
 
     <section class="card">

@@ -23,6 +23,17 @@ export function pickIdentity(target: Email, identities: Identity[]): Identity | 
   );
 }
 
+/**
+ * The people a reply is in conversation with, for looking up earlier mail:
+ * whoever wrote the message being answered, or, when that was us, whoever
+ * we wrote it to.
+ */
+export function correspondents(target: Email, ownEmails: string[]): Address[] {
+  const sender = target.from?.[0];
+  if (sender && !isOwn(sender, ownEmails)) return [sender];
+  return dedupe([...(target.to ?? []), ...(target.cc ?? [])]).filter((a) => !isOwn(a, ownEmails)).slice(0, 3);
+}
+
 export function replySubject(subject: string | null): string {
   const clean = (subject ?? '').trim();
   if (!clean) return 'Re:';
