@@ -6,7 +6,7 @@ Read this first, then [DESIGN.md](DESIGN.md) for the architecture and the reason
 
 A browser extension (Manifest V3) for Fastmail's web app, built for Chrome and Firefox from one codebase. The owner gives a one-line instruction, in a composer inside the Fastmail page or in the side panel; the extension reads the open conversation and the recent earlier mail with the recipient over JMAP, drafts a reply or new email with the Claude API in the voice of the chosen sending identity, and either writes it into the draft that is open in Fastmail or saves it to Fastmail Drafts. A person reviews and sends in Fastmail. It replaces the AI-reply feature the owner used in Missive.
 
-## State at handoff (v0.4.0)
+## State at handoff (v0.4.1)
 
 Working and checked:
 

@@ -6,6 +6,12 @@ Releases are published from tags: see "Releasing" in the README.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-23
+
+### Fixed
+
+- The Firefox manifest now states a minimum of 142 for Firefox for Android (desktop stays at 140), which clears the one actionable warning from AMO's validator: Android only learned the data-collection declaration in 142.
+
 ## [0.4.0] - 2026-11-23
 
 ### Changed
