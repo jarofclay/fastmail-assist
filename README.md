@@ -38,3 +38,4 @@ src/options/             settings page (Vue)
 src/lib/                 JMAP client, Claude client, reply and prompt logic
 tests/                   unit tests for src/lib
 ```
+# fastmail-assist
