@@ -160,7 +160,7 @@ The Firefox manifest declares `data_collection_permissions: personalCommunicatio
 | **M0** | Scaffold: reply and compose to Drafts, floating button, settings, unit tests | Builds and tests pass (done) |
 | **M1** | Load unpacked, run against the real account, settle open questions 1 to 3, 8 and 9 | A real reply drafted, threaded and sent from Fastmail |
 | **M2** | Daily-use polish. Done in v0.2.0 and v0.3.0, pending M1: in-page composer, button beside Reply, insert into the open draft, streaming, panel keeps work in progress, redesigned panel and settings, Firefox build, whole-thread prompts with participants, earlier mail with the recipient as background, To field with contact autocomplete, new emails saved from the page, releases from tags. Still open: the signature decision for JMAP-saved drafts | A week of use without falling back to the Claude app |
-| **M3** | Second user: signed packages (unlisted Chrome Web Store item, unlisted Firefox add-on), shared voice notes, shared-mailbox account support | The second user works from the shared address |
+| **M3** | Second user: signed packages (unlisted Chrome Web Store item, unlisted Firefox add-on; the release workflow delivers both once credentials are set), shared voice notes, shared-mailbox account support | The second user works from the shared address |
 | Later | Voice notes learned from Sent mail; Cc and Bcc in the new-email form; Safari extension for iOS | |
 
 ## Alternatives considered

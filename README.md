@@ -111,7 +111,7 @@ tests/                      unit tests, and tests/e2e for the browser test
 
 1. Bump the version: `npm version 0.5.0 --no-git-tag-version`, and add a `## [0.5.0] - <date>` section to `CHANGELOG.md`.
 2. Commit, then `npm run release`. It checks that the tree is clean and the version is consistent, runs `npm run check`, and creates the tag `v0.5.0`.
-3. `git push origin v0.5.0`. The Release workflow builds both extensions, zips them and publishes a GitHub release with the two zips, a source archive, and the changelog section as notes.
+3. `git push origin v0.5.0`. The Release workflow builds both extensions, zips them and publishes a GitHub release with the two zips, a source archive, and the changelog section as notes. With store credentials in the repository secrets it then also delivers the release to the Chrome Web Store and to Firefox Add-ons; see [`store/README.md`](store/README.md).
 
 ### Publishing to the stores
 

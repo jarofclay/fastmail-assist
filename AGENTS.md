@@ -13,7 +13,7 @@ Working and checked:
 - `npm run check` passes: secret scan, `vue-tsc` typecheck, 38 unit tests, production build of `dist/chrome` and `dist/firefox`. `dist/` is gitignored.
 - `npm run e2e` passes (19 steps): the Chrome build loaded into Chromium and driven against a stand-in server (`tests/e2e/server.mjs`) that plays app.fastmail.com, the JMAP API (mail and contacts) and the Claude API. It covers settings, the in-page composer, the whole-thread prompt with the earlier-mail background, streaming, revise, Save to Drafts for replies and for new emails, the To field's autocomplete, Insert into a Squire editor (the editor Fastmail uses), the side panel, and that typing in the composer does not reach the page's keyboard shortcuts.
 - The Firefox build passes Mozilla's linter (`npx web-ext lint -s dist/firefox`) with no errors.
-- CI (`.github/workflows/ci.yml`) runs the check and the browser test on pull requests; a `v*` tag publishes a GitHub release with both zips (`.github/workflows/release.yml`). `CHANGELOG.md` is the source of the release notes.
+- CI (`.github/workflows/ci.yml`) runs the check and the browser test on pull requests; a `v*` tag publishes a GitHub release with both zips and a source archive (`.github/workflows/release.yml`), then, when the secrets exist, delivers it to the Chrome Web Store and Firefox Add-ons. `CHANGELOG.md` is the source of the release notes. Releases v0.3.0 to v0.4.1 have been cut this way.
 
 New in v0.4.0: the floating launcher is one compact control, "Reply with AI | New" when a conversation is open (the editor chip is gone, and so is its setting); store submission material under `store/` with `PRIVACY.md`; releases carry a source archive for AMO. New in v0.3.1: the real Fastmail URL shape is read, and To is prefilled for replies. New in v0.3.0: the prompt carries the whole conversation with its participants (older messages shortened, quoted repeats stripped) and a fenced `<history>` block of recent earlier conversations with the recipient (setting `history`, on by default); the in-page composer has a To field with autocomplete from Fastmail Contacts and recent correspondents, an editable Subject, and Save to Drafts for new emails; the icon is a reply arrow with a sparkle.
 
@@ -23,7 +23,7 @@ Not done, and not to be assumed working:
 - **The in-page pieces have only met a mock page.** The toolbar button finds Fastmail's Reply button by its label, and the draft-editor chip and Insert find the editor by it being a large focused editable element. Whether Fastmail's real page behaves like the mock is the first thing to check.
 - **The Firefox build has been loaded in Firefox only once**, far enough to find and fix a settings bug; the sidebar and the in-page flow there are unverified.
 - The real side panel has never been opened; the e2e test loads `sidepanel.html` as a tab.
-- The release workflow has never run; the first `v0.3.0` tag will be its first run.
+- The store delivery jobs in the release workflow have never run with real credentials; their shell steps were rehearsed locally against the built zips.
 
 ## Next task: milestone M1
 
@@ -83,7 +83,7 @@ npm run release    # after a version bump and a CHANGELOG entry: checks, then ta
 - **The e2e build is not the shipping build.** `npm run e2e` builds with `FA_E2E=1`, which opens the content script's shadow root so the test can reach it. Run `npm run build` again before loading or packaging.
 - **Events inside the composer never reach listeners in the shadow root** for the guarded types (keys, input, clipboard): the window capture listener in `src/content.ts` stops them and dispatches itself. Handle a new input's `input` or key events there (see how the To field is wired), not with `addEventListener` on the element.
 - **The screenshots in `docs/`** come from `FA_SHOTS=dir npm run e2e` (the `card-*.png` files), so they show the stand-in page. Regenerate them when the composer's look changes.
-- **Releases are tag-driven.** `scripts/release-notes.mjs --check` refuses a tag whose version is not in both `package.json` and `CHANGELOG.md`; bump both before `npm run release`.
+- **Releases are tag-driven.** `scripts/release-notes.mjs --check` refuses a tag whose version is not in both `package.json` and `CHANGELOG.md`; bump both before `npm run release`. The release workflow's two store jobs are inert without their secrets (`store/README.md`); the unlisted Firefox path injects `gecko.update_url` into the manifest in CI only, so the shipped zips stay usable for both AMO channels.
 
 ## Map
 
@@ -96,6 +96,7 @@ scripts/make-icons.mjs      regenerates public/icons from the SVG inside it (rep
 scripts/release.mjs         npm run release: checks, then tags v<version>
 scripts/release-notes.mjs   release notes from CHANGELOG.md; --check verifies versions agree
 scripts/store-assets.mjs    composes store/screenshots from the e2e screenshots (FA_SHOTS)
+scripts/firefox-updates.mjs updates.json for self-updating unlisted Firefox installs (release workflow)
 .github/workflows/          ci.yml (check + e2e on PRs), release.yml (zips + source archive on a v* tag)
 CHANGELOG.md                release notes, newest first
 PRIVACY.md                  the privacy policy the store listings link to

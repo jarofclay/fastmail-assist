@@ -1,7 +1,13 @@
-# Pushing a tag like v0.3.0 builds both extensions, checks them, and publishes
-# a GitHub release with the two zips attached and the matching section of
-# CHANGELOG.md as the notes. `npm run release` creates the tag locally after
-# the same checks.
+# Pushing a tag like v0.4.1 builds both extensions, checks them, and publishes
+# a GitHub release with the two zips, the source archive and the matching
+# section of CHANGELOG.md as the notes. `npm run release` creates the tag
+# locally after the same checks.
+#
+# Two more jobs then deliver that same release to the stores. Each runs only
+# when its credentials are in the repository secrets, so until then they do
+# nothing but say so. Both belong to the "stores" environment: give it a
+# required reviewer under Settings → Environments and every delivery waits
+# for a click of Approve. See store/README.md for the credentials.
 
 name: Release
 
@@ -15,6 +21,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,6 +32,8 @@ jobs:
       - run: npm ci
       - name: Check that the tag, package.json and CHANGELOG.md agree
         run: node scripts/release-notes.mjs --check "$GITHUB_REF_NAME"
+      - id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - name: Check, build and zip both extensions
         run: npm run package
       - name: Write the release notes
@@ -37,3 +47,128 @@ jobs:
             --title "Fastmail Assist $GITHUB_REF_NAME" \
             --notes-file release-notes.md \
             --verify-tag
+
+  # Uploads the Chrome zip of the release to the Chrome Web Store item and
+  # submits it for review; Google then rolls the approved version out. The
+  # item must exist already (the first version is submitted by hand).
+  chrome-web-store:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - name: Are the Chrome Web Store credentials set?
+        id: gate
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID || vars.CWS_EXTENSION_ID }}
+        run: |
+          if [ -n "$CWS_CLIENT_ID" ] && [ -n "$CWS_CLIENT_SECRET" ] && [ -n "$CWS_REFRESH_TOKEN" ] && [ -n "$CWS_EXTENSION_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Chrome Web Store delivery is off: set CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN and CWS_EXTENSION_ID (see store/README.md)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download the Chrome zip from the release
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'fastmail-assist-chrome-*.zip' --dir .
+      - name: Upload to the Chrome Web Store (and submit for review unless CWS_UPLOAD_ONLY is "true")
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID || vars.CWS_EXTENSION_ID }}
+          UPLOAD_ONLY: ${{ vars.CWS_UPLOAD_ONLY }}
+        run: |
+          set -e
+          ZIP=$(ls fastmail-assist-chrome-*.zip)
+          if [ "$UPLOAD_ONLY" = "true" ]; then
+            npx --yes chrome-webstore-upload-cli@3 upload --source "$ZIP"
+            echo "Uploaded $ZIP as a draft. Publish it from the developer console."
+          else
+            npx --yes chrome-webstore-upload-cli@3 upload --source "$ZIP" --auto-publish
+            echo "Uploaded $ZIP and submitted it for review."
+          fi
+
+  # Signs the Firefox zip of the release through addons.mozilla.org. Channel
+  # "unlisted" (the default): AMO signs within minutes, the signed .xpi and an
+  # updates.json are attached to the release, and installs made from that
+  # .xpi update themselves from GitHub. Channel "listed": the version goes
+  # into AMO's review queue and AMO publishes it when approved.
+  firefox-addons:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - name: Are the AMO credentials set?
+        id: gate
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -n "$AMO_JWT_ISSUER" ] && [ -n "$AMO_JWT_SECRET" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Firefox Add-ons delivery is off: set AMO_JWT_ISSUER and AMO_JWT_SECRET (see store/README.md)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download the Firefox zip and the source archive from the release
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'fastmail-assist-firefox-*.zip' --pattern 'fastmail-assist-source-*.zip' --dir .
+          mkdir firefox && unzip -q fastmail-assist-firefox-*.zip -d firefox
+      - name: Point an unlisted build at its update manifest on GitHub
+        if: steps.gate.outputs.enabled == 'true' && (vars.AMO_CHANNEL || 'unlisted') == 'unlisted'
+        env:
+          UPDATE_URL: https://github.com/${{ github.repository }}/releases/latest/download/updates.json
+        run: |
+          node -e '
+            const fs = require("fs");
+            const manifest = JSON.parse(fs.readFileSync("firefox/manifest.json", "utf8"));
+            manifest.browser_specific_settings.gecko.update_url = process.env.UPDATE_URL;
+            fs.writeFileSync("firefox/manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+          '
+      - name: Sign through addons.mozilla.org
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          CHANNEL: ${{ vars.AMO_CHANNEL || 'unlisted' }}
+        run: |
+          set -e
+          SOURCE=$(ls fastmail-assist-source-*.zip)
+          if [ "$CHANNEL" = "listed" ]; then
+            # Human review takes days: upload and come back later; AMO publishes on approval.
+            npx --yes web-ext@8 sign --source-dir firefox --channel listed --upload-source-code "$SOURCE" --approval-timeout 0 --artifacts-dir signed
+            echo "Uploaded to AMO's review queue. AMO publishes it once approved."
+          else
+            npx --yes web-ext@8 sign --source-dir firefox --channel unlisted --upload-source-code "$SOURCE" --artifacts-dir signed
+          fi
+      - name: Attach the signed .xpi and updates.json to the release
+        if: steps.gate.outputs.enabled == 'true' && (vars.AMO_CHANNEL || 'unlisted') == 'unlisted'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -e
+          XPI="fastmail-assist-firefox-${VERSION}-signed.xpi"
+          mv signed/*.xpi "$XPI"
+          node scripts/firefox-updates.mjs "$XPI" "$VERSION" "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" > updates.json
+          gh release upload "$GITHUB_REF_NAME" "$XPI" updates.json --repo "$GITHUB_REPOSITORY" --clobber
+          echo "Attached $XPI and updates.json. Firefox installs made from the signed file update from here."
