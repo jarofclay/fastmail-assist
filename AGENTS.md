@@ -6,7 +6,7 @@ Read this first, then [DESIGN.md](DESIGN.md) for the architecture and the reason
 
 A browser extension (Manifest V3) for Fastmail's web app, built for Chrome and Firefox from one codebase. The owner gives a one-line instruction, in a composer inside the Fastmail page or in the side panel; the extension reads the open conversation and the recent earlier mail with the recipient over JMAP, drafts a reply or new email with the Claude API in the voice of the chosen sending identity, and either writes it into the draft that is open in Fastmail or saves it to Fastmail Drafts. A person reviews and sends in Fastmail. It replaces the AI-reply feature the owner used in Missive.
 
-## State at handoff (v0.3.1)
+## State at handoff (v0.4.0)
 
 Working and checked:
 
@@ -15,7 +15,7 @@ Working and checked:
 - The Firefox build passes Mozilla's linter (`npx web-ext lint -s dist/firefox`) with no errors.
 - CI (`.github/workflows/ci.yml`) runs the check and the browser test on pull requests; a `v*` tag publishes a GitHub release with both zips (`.github/workflows/release.yml`). `CHANGELOG.md` is the source of the release notes.
 
-New in v0.3.0: the prompt carries the whole conversation with its participants (older messages shortened, quoted repeats stripped) and a fenced `<history>` block of recent earlier conversations with the recipient (setting `history`, on by default); the in-page composer has a To field with autocomplete from Fastmail Contacts and recent correspondents, an editable Subject, and Save to Drafts for new emails; the icon is a reply arrow with a sparkle.
+New in v0.4.0: the floating launcher is one compact control, "Reply with AI | New" when a conversation is open (the editor chip is gone, and so is its setting); store submission material under `store/` with `PRIVACY.md`; releases carry a source archive for AMO. New in v0.3.1: the real Fastmail URL shape is read, and To is prefilled for replies. New in v0.3.0: the prompt carries the whole conversation with its participants (older messages shortened, quoted repeats stripped) and a fenced `<history>` block of recent earlier conversations with the recipient (setting `history`, on by default); the in-page composer has a To field with autocomplete from Fastmail Contacts and recent correspondents, an editable Subject, and Save to Drafts for new emails; the icon is a reply arrow with a sparkle.
 
 Not done, and not to be assumed working:
 
@@ -33,7 +33,7 @@ Goal: one real reply drafted, threaded correctly, and sent by the owner from Fas
 2. **Fastmail URL format** (open question 1). Settled in v0.3.1: `/mail/<Mailbox>/<threadId>.<emailId>?u=…` with `A…` thread ids and `S…` email ids (twelve base64url characters). `src/lib/fastmailUrl.ts` and the identical literal in `src/content.ts` read that (a unit test keeps the two equal). Left to check at the keyboard: the URL while a draft is open, and in search results. If either differs, those two files and the tests are the only places to change.
 3. **Token scopes** (open question 2). Have the owner create a Fastmail API token with Email and Contacts and without Email submission, then use Test connection. It should say the inbox and contacts are readable. Confirm `Email/set` can create a draft with that token.
    - **Contacts and history** (open questions 10 and 11). In the composer with no conversation, type two letters of a known contact's name into To: do address-book matches appear? Open a conversation with someone the owner has written to before: does the subtitle show "N earlier conversations with …" within a second or two, and does the drafted reply use the right name? Check the background worker's console for a JMAP error on `ContactCard/query` or `Email/query`; if the filter shape is the problem, `src/lib/jmap.ts` is the only place to change.
-4. **In-page pieces on the real page** (open question 8). With a conversation open: does "Reply with AI" appear next to Reply, and does it look right in the toolbar? Click Reply: does the ✦ chip appear in the editor, and does Insert put the text at the cursor, above the quote and signature? Type in the composer: does anything in Fastmail react to the keys? If the toolbar button misbehaves it can be switched off in the settings without losing anything else.
+4. **In-page pieces on the real page** (open question 8). With a conversation open: does "Reply with AI" appear next to Reply, and does it look right in the toolbar? Does the floating button read "Reply with AI | New"? Click Reply in Fastmail: does Insert put the text at the cursor, above the quote and signature? Type in the composer: does anything in Fastmail react to the keys? If the toolbar button misbehaves it can be switched off in the settings without losing anything else.
 5. **Draft visibility** (open question 3). After Save to Drafts, check whether the draft appears in the open conversation without a reload, with the right From, To, Cc, subject, and quoted original.
 6. Check the background worker's console and the page console for errors during a full reply and a full compose.
 7. **Firefox** (open question 9). Load `dist/firefox/manifest.json` at `about:debugging` and repeat steps 3 to 6.
@@ -95,15 +95,18 @@ scripts/package.mjs         zips both builds
 scripts/make-icons.mjs      regenerates public/icons from the SVG inside it (reply arrow + sparkle)
 scripts/release.mjs         npm run release: checks, then tags v<version>
 scripts/release-notes.mjs   release notes from CHANGELOG.md; --check verifies versions agree
-.github/workflows/          ci.yml (check + e2e on PRs), release.yml (zips on a v* tag)
+scripts/store-assets.mjs    composes store/screenshots from the e2e screenshots (FA_SHOTS)
+.github/workflows/          ci.yml (check + e2e on PRs), release.yml (zips + source archive on a v* tag)
 CHANGELOG.md                release notes, newest first
+PRIVACY.md                  the privacy policy the store listings link to
+store/                      store submission texts (Chrome Web Store, AMO) and screenshots
 docs/                       screenshots for the README, from the e2e test
 sidepanel.html, options.html  Vite entry pages
-src/content.ts              in-page UI: launcher, toolbar button, draft-editor chip, composer
+src/content.ts              in-page UI: launcher (Reply with AI | New), toolbar button, composer
 src/protocol.d.ts           message types between content script and background
 src/background.ts           handles the composer's requests; opens the panel; locks storage
 src/sidepanel/App.vue       side panel / sidebar: the full flow, with recent conversations
-src/options/Options.vue     settings: token, key, model, identities with voice notes, in-page toggles
+src/options/Options.vue     settings: token, key, model, identities with voice notes, history and toolbar-button switches
 src/styles.css              shared look of the panel and settings (the composer carries its own copy)
 src/lib/engine.ts           drafting and revising, shared by the panel and the background
 src/lib/jmap.ts             JMAP client: getThread, recentThreads, correspondence, searchPeople, createDraft

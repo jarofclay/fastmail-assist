@@ -6,6 +6,18 @@ Releases are published from tags: see "Releasing" in the README.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-23
+
+### Changed
+
+- **One floating button instead of two.** The launcher is smaller and, whenever a conversation is open, becomes a split button: **Reply with AI | New**. New opens the composer for a fresh email, which also settles the case where a draft is open and the extension could not tell a reply from a new message. The separate chip in the corner of the draft editor is gone, along with its setting.
+
+### Added
+
+- `PRIVACY.md`, the privacy policy both store listings link to.
+- `store/`: the Chrome Web Store and Firefox Add-ons listings ready to paste (descriptions, category, permission justifications, data disclosures, reviewer notes), store-sized screenshots composed from the browser test by `scripts/store-assets.mjs`, and a checklist.
+- Releases now also carry `fastmail-assist-source-<version>.zip`, the source archive Firefox Add-ons asks for.
+
 ## [0.3.1] - 2026-11-23
 
 ### Fixed

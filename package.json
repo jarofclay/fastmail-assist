@@ -1,6 +1,6 @@
 {
   "name": "fastmail-assist",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "license": "MIT",
   "description": "Browser extension for Fastmail (Chrome and Firefox): say in a line what an email should say and get a draft in your voice, written from the whole conversation into your open draft or saved to Drafts. Never sends.",

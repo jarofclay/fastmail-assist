@@ -12,7 +12,7 @@ export const emptySettings = (): Settings => ({
   anthropicKey: '',
   model: DEFAULT_MODEL,
   identities: [],
-  inPage: { toolbarButton: true, editorChip: true },
+  inPage: { toolbarButton: true },
   history: true,
 });
 
@@ -23,7 +23,8 @@ export function withDefaults(stored: Partial<Settings> | undefined): Settings {
     ...base,
     ...stored,
     identities: Array.isArray(stored?.identities) ? stored.identities : base.identities,
-    inPage: { ...base.inPage, ...stored?.inPage },
+    // Older settings may carry keys of removed features; only known ones are kept.
+    inPage: { toolbarButton: typeof stored?.inPage?.toolbarButton === 'boolean' ? stored.inPage.toolbarButton : base.inPage.toolbarButton },
     history: typeof stored?.history === 'boolean' ? stored.history : base.history,
   };
 }

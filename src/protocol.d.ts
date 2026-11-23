@@ -20,7 +20,6 @@ declare namespace FA {
   interface Features {
     configured: boolean;
     toolbarButton: boolean;
-    editorChip: boolean;
     /** False where the browser cannot open the side panel from a page click (Firefox). */
     canOpenPanel: boolean;
   }

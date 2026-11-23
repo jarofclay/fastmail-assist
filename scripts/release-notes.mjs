@@ -52,7 +52,7 @@ if (check) {
       '### Install',
       '',
       '- **Chrome:** download `fastmail-assist-chrome-*.zip`, unzip it, open `chrome://extensions`, turn on Developer mode, click **Load unpacked** and choose the unzipped folder.',
-      '- **Firefox:** download `fastmail-assist-firefox-*.zip`; load it as a temporary add-on from `about:debugging#/runtime/this-firefox`, or sign it as an unlisted add-on for a permanent install.',
+      '- **Firefox:** download `fastmail-assist-firefox-*.zip`; load it as a temporary add-on from `about:debugging#/runtime/this-firefox`, or sign it as an unlisted add-on for a permanent install. `fastmail-assist-source-*.zip` is the matching source, for the add-on review.',
       '',
       'Then open the extension settings and follow the setup in the README. The extension cannot send mail: it only saves drafts or writes into the draft you have open.',
     ].join('\n'),

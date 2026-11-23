@@ -33,7 +33,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            dist/fastmail-assist-chrome-*.zip dist/fastmail-assist-firefox-*.zip \
+            dist/fastmail-assist-chrome-*.zip dist/fastmail-assist-firefox-*.zip dist/fastmail-assist-source-*.zip \
             --title "Fastmail Assist $GITHUB_REF_NAME" \
             --notes-file release-notes.md \
             --verify-tag
