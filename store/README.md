@@ -35,14 +35,20 @@ node scripts/store-assets.mjs /tmp/fa-shots         # writes store/screenshots/
 
 ## Automated delivery
 
-The Release workflow has two more jobs, `chrome-web-store` and `firefox-addons`, that run after every GitHub release. Each does nothing until its credentials are in the repository secrets (Settings → Secrets and variables → Actions), and each belongs to the `stores` environment: give that environment a required reviewer under Settings → Environments and every store delivery waits for a click of Approve in the Actions tab. The stores' first versions are submitted by hand; the jobs update what exists.
+The Release workflow has two more jobs, `chrome-web-store` and `firefox-addons`, that run after every GitHub release. Each does nothing until its credentials are in the repository secrets (Settings → Secrets and variables → Actions), each can be switched off for a release with a repository variable, and each belongs to the `stores` environment: give that environment a required reviewer under Settings → Environments and every store delivery waits for a click of Approve in the Actions tab. The stores' first versions are submitted by hand; the jobs update what exists.
 
-**Chrome Web Store.** Secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`, and `CWS_EXTENSION_ID` (the id the store assigned; a repository variable works too). To get the first three: in the Google Cloud console of the publishing account, enable the "Chrome Web Store API", create an OAuth client id of type Desktop app, then obtain a refresh token once through the consent flow with the scope `https://www.googleapis.com/auth/chromewebstore` (the `chrome-webstore-upload-cli` README walks through it). The job uploads the release's Chrome zip and submits it for review; set the repository variable `CWS_UPLOAD_ONLY` to `true` to have it land as a draft you publish by hand instead. Each new version is reviewed again by Google and rolled out to users on approval.
+| Repository variable | Values | Meaning |
+| --- | --- | --- |
+| `CWS_MODE` | unset or `publish` (default), `draft`, `off` | Submit for review; or upload a draft to publish by hand; or stand aside |
+| `AMO_CHANNEL` | unset or `unlisted` (default), `listed`, `off` | Sign for self-distribution; or submit to the public listing's review queue; or stand aside |
 
-**Firefox Add-ons.** Secrets `AMO_JWT_ISSUER` and `AMO_JWT_SECRET`, from the Developer Hub → Manage API Keys. The repository variable `AMO_CHANNEL` chooses the channel:
+**Chrome Web Store.** Secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`, and `CWS_EXTENSION_ID` (the id the store assigned; a repository variable works too). To get the first three: in the Google Cloud console of the publishing account, enable the "Chrome Web Store API", create an OAuth client id of type Desktop app, then obtain a refresh token once through the consent flow with the scope `https://www.googleapis.com/auth/chromewebstore` (the `chrome-webstore-upload-cli` README walks through it). The job uploads the release's Chrome zip and submits it for review; `CWS_MODE=draft` has it land as a draft you publish by hand instead. Each new version is reviewed again by Google and rolled out to users on approval.
+
+**Firefox Add-ons.** Secrets `AMO_JWT_ISSUER` and `AMO_JWT_SECRET`, from the Developer Hub → Manage API Keys. `AMO_CHANNEL` chooses the channel:
 
 - `unlisted` (the default): AMO signs within minutes. The job attaches the signed `.xpi` and an `updates.json` to the GitHub release, and the signed build's manifest points at `https://github.com/jarofclay/fastmail-assist/releases/latest/download/updates.json`, so Firefox installs made from the `.xpi` update themselves from GitHub. Install the first `.xpi` by hand; after that, nothing.
-- `listed`: the version goes into AMO's human review queue with the source archive attached, and AMO publishes it when approved. The update URL is not added, since AMO does not allow one on listed add-ons.
+- `listed`: the version goes into AMO's human review queue with the source archive attached, and AMO publishes it when approved. The update URL is not added, since AMO does not allow one on listed add-ons. The listing (summary, description, categories, license, privacy policy) must already be complete, or AMO refuses the upload naming the missing fields.
+- `off`: the job stands aside. Use this for the release whose Firefox version you submit by hand, for example the **first listed version**: set `AMO_CHANNEL=off`, push the tag, then in the Developer Hub choose New Version → On this site, upload that release's Firefox zip and source zip, complete the listing from `firefox-amo.md`, and submit. Once that version is approved, set `AMO_CHANNEL=listed` so later releases follow it into the store.
 
 A store job failing never undoes the GitHub release, and both stores refuse a version number they have seen, so after a rejection the way forward is fix, bump, tag again.
 
