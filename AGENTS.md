@@ -17,28 +17,28 @@ Working and checked:
 
 New in v0.4.0: the floating launcher is one compact control, "Reply with AI | New" when a conversation is open (the editor chip is gone, and so is its setting); store submission material under `store/` with `PRIVACY.md`; releases carry a source archive for AMO. New in v0.3.1: the real Fastmail URL shape is read, and To is prefilled for replies. New in v0.3.0: the prompt carries the whole conversation with its participants (older messages shortened, quoted repeats stripped) and a fenced `<history>` block of recent earlier conversations with the recipient (setting `history`, on by default); the in-page composer has a To field with autocomplete from Fastmail Contacts and recent correspondents, an editable Subject, and Save to Drafts for new emails; the icon is a reply arrow with a sparkle.
 
+Verified on the owner's real Fastmail account and the real Claude API, in Chrome (milestone M1, 24 November 2026): the whole flow. Settings and both connection tests; the real URL shape; a conversation looked up, the earlier mail with its sender counted and used; a reply drafted from the whole thread with the right name; "Reply with AI" next to Fastmail's Reply and the split launcher; Insert landing above the quote and signature; typing in the composer reaching none of Fastmail's shortcuts; Save to Drafts producing a threaded draft that shows in the conversation; contacts autocomplete in To; no console errors in a full reply and a full new email. The extension is approved and live on the Chrome Web Store.
+
 Not done, and not to be assumed working:
 
-- **Almost nothing has run against the real Fastmail web app, a real Fastmail account or the real Claude API.** The one thing that has: v0.3.0 on the owner's Fastmail, which showed the URL parser never matched a real conversation (fixed in v0.3.1). `src/lib/jmap.ts` and `src/lib/claude.ts` are written from the published API docs. In particular the contacts calls (`ContactCard/query` with a `text` filter, JSContact cards) and the `Email/query` filters used for history and people search are unverified (DESIGN.md open questions 10 and 11). Both fail soft: no contacts means suggestions come from mail only; a failed history lookup means the draft goes without it.
-- **The in-page pieces have only met a mock page.** The toolbar button finds Fastmail's Reply button by its label, and the draft-editor chip and Insert find the editor by it being a large focused editable element. Whether Fastmail's real page behaves like the mock is the first thing to check.
-- **The Firefox build has been loaded in Firefox only once**, far enough to find and fix a settings bug; the sidebar and the in-page flow there are unverified.
-- The real side panel has never been opened; the e2e test loads `sidepanel.html` as a tab.
-- The store delivery jobs in the release workflow have never run with real credentials; their shell steps were rehearsed locally against the built zips.
+- **Firefox has not been exercised in use.** The add-on was loaded once, far enough to find and fix a settings bug (DESIGN.md open question 9). The sidebar, streaming from the event page and the paste-based insert from a content script are unverified there. Version 0.4.0 is submitted to addons.mozilla.org on the self-hosted channel; the listed version is to be submitted by hand from the next release (see `store/README.md`, "Automated delivery").
+- The real Chrome side panel has not been reported on; the e2e test loads `sidepanel.html` as a tab.
+- The store delivery jobs in the release workflow have the credentials in place but have not yet run against the real stores; the first tag after v0.4.1 is their first run (Chrome delivers; Firefox is switched off with `AMO_CHANNEL=off` until the listed version is approved by hand).
+- The signature decision for JMAP-saved drafts (DESIGN.md open question 4) is still open; Insert into the open draft sidesteps it.
 
-## Next task: milestone M1
+## Milestone M1: done
 
-Goal: one real reply drafted, threaded correctly, and sent by the owner from Fastmail. The owner has to be at the keyboard for this (their browser, their tokens). Work through these in order and record each answer in DESIGN.md under "Open questions".
+M1 (one real reply drafted, threaded correctly, and sent by the owner from Fastmail) was completed on 24 November 2026 in Chrome. Its findings are recorded in DESIGN.md under "Open questions" (1 to 3, 8, 10 and 11) and in the status above. Nothing on its list remains except Firefox, which moved to M3.
 
-1. `npm install`, `npm run build`, load `dist/chrome` at `chrome://extensions`, open the options page. Fix whatever breaks.
-2. **Fastmail URL format** (open question 1). Settled in v0.3.1: `/mail/<Mailbox>/<threadId>.<emailId>?u=…` with `A…` thread ids and `S…` email ids (twelve base64url characters). `src/lib/fastmailUrl.ts` and the identical literal in `src/content.ts` read that (a unit test keeps the two equal). Left to check at the keyboard: the URL while a draft is open, and in search results. If either differs, those two files and the tests are the only places to change.
-3. **Token scopes** (open question 2). Have the owner create a Fastmail API token with Email and Contacts and without Email submission, then use Test connection. It should say the inbox and contacts are readable. Confirm `Email/set` can create a draft with that token.
-   - **Contacts and history** (open questions 10 and 11). In the composer with no conversation, type two letters of a known contact's name into To: do address-book matches appear? Open a conversation with someone the owner has written to before: does the subtitle show "N earlier conversations with …" within a second or two, and does the drafted reply use the right name? Check the background worker's console for a JMAP error on `ContactCard/query` or `Email/query`; if the filter shape is the problem, `src/lib/jmap.ts` is the only place to change.
-4. **In-page pieces on the real page** (open question 8). With a conversation open: does "Reply with AI" appear next to Reply, and does it look right in the toolbar? Does the floating button read "Reply with AI | New"? Click Reply in Fastmail: does Insert put the text at the cursor, above the quote and signature? Type in the composer: does anything in Fastmail react to the keys? If the toolbar button misbehaves it can be switched off in the settings without losing anything else.
-5. **Draft visibility** (open question 3). After Save to Drafts, check whether the draft appears in the open conversation without a reload, with the right From, To, Cc, subject, and quoted original.
-6. Check the background worker's console and the page console for errors during a full reply and a full compose.
-7. **Firefox** (open question 9). Load `dist/firefox/manifest.json` at `about:debugging` and repeat steps 3 to 6.
+## Next tasks
 
-Then continue with M2 in DESIGN.md.
+In this order, unless the owner says otherwise:
+
+1. **The first real run of the store delivery jobs.** On the next tag, open the Release run in the Actions tab and read the two gate lines: Chrome should report an upload submitted for review, Firefox should report that it is switched off. If a Chrome credential is reported missing, the name of the secret is wrong. Fix anything the real Chrome Web Store API objects to; the job has only been rehearsed against the local zips.
+2. **Firefox listed submission** (owner at the keyboard; `store/firefox-amo.md`): from the next release's zips, New Version → On this site, source attached, listing completed, submitted. When approved, set the repository variable `AMO_CHANNEL` to `listed`.
+3. **Firefox in use** (open question 9): load `dist/firefox/manifest.json` at `about:debugging` and repeat the M1 checks: Test connection, a reply with Insert, Save to Drafts, contacts in To, no console errors, the sidebar. Fix what differs; the in-page code is shared, so differences will be in `sidebar_action`, the event page, or the paste path.
+4. **M2's open point**: the signature on JMAP-saved drafts (DESIGN.md open question 4). The owner's preference decides between voice notes (current), reading `Identity/get` (needs the submission scope, which the "never send" rule forbids without an explicit decision), or leaving it to Insert.
+5. **M3**: the spouse installs from the Chrome Web Store and sets up the shared identity; then shared voice notes and shared-mailbox account support (open question 6).
 
 ## Commands
 

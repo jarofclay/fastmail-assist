@@ -6,6 +6,10 @@ Releases are published from tags: see "Releasing" in the README.
 
 ## [Unreleased]
 
+### Changed
+
+- Milestone M1 recorded as done in DESIGN.md and AGENTS.md: the extension runs against a real Fastmail account and the real Claude API in Chrome, and open questions 2, 3, 8, 10 and 11 are answered. The Chrome Web Store listing is live.
+
 ### Added
 
 - The Release workflow can deliver a release to the stores: a `chrome-web-store` job uploads the Chrome zip and submits it for review, and a `firefox-addons` job signs the Firefox zip through addons.mozilla.org, attaching the signed `.xpi` and an `updates.json` to the GitHub release for self-updating unlisted installs. Both jobs run only when their credentials are in the repository secrets, can be switched off per release with the repository variables `CWS_MODE=off` and `AMO_CHANNEL=off`, and sit in a `stores` environment that can require an approver. `store/README.md` lists the secrets, the variables and how to get the credentials.
