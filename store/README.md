@@ -33,6 +33,19 @@ node scripts/store-assets.mjs /tmp/fa-shots         # writes store/screenshots/
 2. Submit to both stores as **unlisted** first (Chrome: visibility Unlisted; AMO: "On your own" or listed but hidden), install from the stores, use it for a while.
 3. Then switch to public.
 
+## Automated delivery
+
+The Release workflow has two more jobs, `chrome-web-store` and `firefox-addons`, that run after every GitHub release. Each does nothing until its credentials are in the repository secrets (Settings → Secrets and variables → Actions), and each belongs to the `stores` environment: give that environment a required reviewer under Settings → Environments and every store delivery waits for a click of Approve in the Actions tab. The stores' first versions are submitted by hand; the jobs update what exists.
+
+**Chrome Web Store.** Secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`, and `CWS_EXTENSION_ID` (the id the store assigned; a repository variable works too). To get the first three: in the Google Cloud console of the publishing account, enable the "Chrome Web Store API", create an OAuth client id of type Desktop app, then obtain a refresh token once through the consent flow with the scope `https://www.googleapis.com/auth/chromewebstore` (the `chrome-webstore-upload-cli` README walks through it). The job uploads the release's Chrome zip and submits it for review; set the repository variable `CWS_UPLOAD_ONLY` to `true` to have it land as a draft you publish by hand instead. Each new version is reviewed again by Google and rolled out to users on approval.
+
+**Firefox Add-ons.** Secrets `AMO_JWT_ISSUER` and `AMO_JWT_SECRET`, from the Developer Hub → Manage API Keys. The repository variable `AMO_CHANNEL` chooses the channel:
+
+- `unlisted` (the default): AMO signs within minutes. The job attaches the signed `.xpi` and an `updates.json` to the GitHub release, and the signed build's manifest points at `https://github.com/jarofclay/fastmail-assist/releases/latest/download/updates.json`, so Firefox installs made from the `.xpi` update themselves from GitHub. Install the first `.xpi` by hand; after that, nothing.
+- `listed`: the version goes into AMO's human review queue with the source archive attached, and AMO publishes it when approved. The update URL is not added, since AMO does not allow one on listed add-ons.
+
+A store job failing never undoes the GitHub release, and both stores refuse a version number they have seen, so after a rejection the way forward is fix, bump, tag again.
+
 ## Account notes
 
 - Chrome Web Store needs a Google account for the developer console and a one-time registration fee. A dedicated account used only for publishing keeps this separate from everything else.

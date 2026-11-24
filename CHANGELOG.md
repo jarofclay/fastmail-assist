@@ -6,6 +6,10 @@ Releases are published from tags: see "Releasing" in the README.
 
 ## [Unreleased]
 
+### Added
+
+- The Release workflow can deliver a release to the stores: a `chrome-web-store` job uploads the Chrome zip and submits it for review, and a `firefox-addons` job signs the Firefox zip through addons.mozilla.org, attaching the signed `.xpi` and an `updates.json` to the GitHub release for self-updating unlisted installs. Both jobs run only when their credentials are in the repository secrets and sit in a `stores` environment that can require an approver. `store/README.md` lists the secrets and how to get them.
+
 ## [0.4.1] - 2026-11-23
 
 ### Fixed

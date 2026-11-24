@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { reactive } from 'vue';
+import { ADDON_ID, updatesManifest } from '../scripts/firefox-updates.mjs';
 import { manifest } from '../scripts/manifest.mjs';
 import { scanText } from '../scripts/scan-secrets.mjs';
 import { streamMessage } from '../src/lib/claude';
@@ -195,6 +196,20 @@ describe('settings and URLs', () => {
     expect(() => structuredClone(written)).not.toThrow();
     expect(written.settings.identities).toEqual([us]);
     expect(written.settings.inPage).toEqual({ toolbarButton: true });
+  });
+
+  it('writes the update manifest Firefox polls for a self-distributed install', () => {
+    const firefox = manifest('firefox', '1') as { browser_specific_settings?: { gecko: { id: string } } };
+    expect(firefox.browser_specific_settings?.gecko.id).toBe(ADDON_ID);
+    const updates = updatesManifest({ version: '0.4.1', fileName: 'fastmail-assist-firefox-0.4.1-signed.xpi', sha256: 'ab12', baseUrl: 'https://github.com/o/r/releases/download/v0.4.1/' });
+    expect(updates).toEqual({
+      addons: {
+        [ADDON_ID]: {
+          updates: [{ version: '0.4.1', update_link: 'https://github.com/o/r/releases/download/v0.4.1/fastmail-assist-firefox-0.4.1-signed.xpi', update_hash: 'sha256:ab12' }],
+        },
+      },
+    });
+    expect(() => updatesManifest({ version: 'v0.4.1', fileName: 'x.xpi', sha256: '00', baseUrl: 'https://example.org' })).toThrow();
   });
 
   it('links to Drafts for the same Fastmail user', () => {
