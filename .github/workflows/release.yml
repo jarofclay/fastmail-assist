@@ -5,9 +5,11 @@
 #
 # Two more jobs then deliver that same release to the stores. Each runs only
 # when its credentials are in the repository secrets, so until then they do
-# nothing but say so. Both belong to the "stores" environment: give it a
-# required reviewer under Settings → Environments and every delivery waits
-# for a click of Approve. See store/README.md for the credentials.
+# nothing but say so, and each can be switched off for a release with a
+# repository variable (CWS_MODE=off, AMO_CHANNEL=off), for example to make a
+# store's first submission by hand. Both belong to the "stores" environment:
+# give it a required reviewer under Settings → Environments and every
+# delivery waits for a click of Approve. See store/README.md.
 
 name: Release
 
@@ -56,15 +58,19 @@ jobs:
     runs-on: ubuntu-latest
     environment: stores
     steps:
-      - name: Are the Chrome Web Store credentials set?
+      - name: Are the Chrome Web Store credentials set, and is delivery on?
         id: gate
         env:
           CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
           CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
           CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID || vars.CWS_EXTENSION_ID }}
+          CWS_MODE: ${{ vars.CWS_MODE }}
         run: |
-          if [ -n "$CWS_CLIENT_ID" ] && [ -n "$CWS_CLIENT_SECRET" ] && [ -n "$CWS_REFRESH_TOKEN" ] && [ -n "$CWS_EXTENSION_ID" ]; then
+          if [ "$CWS_MODE" = "off" ]; then
+            echo "Chrome Web Store delivery is switched off for this release (repository variable CWS_MODE=off)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$CWS_CLIENT_ID" ] && [ -n "$CWS_CLIENT_SECRET" ] && [ -n "$CWS_REFRESH_TOKEN" ] && [ -n "$CWS_EXTENSION_ID" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "Chrome Web Store delivery is off: set CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN and CWS_EXTENSION_ID (see store/README.md)."
@@ -79,18 +85,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'fastmail-assist-chrome-*.zip' --dir .
-      - name: Upload to the Chrome Web Store (and submit for review unless CWS_UPLOAD_ONLY is "true")
+      - name: Upload to the Chrome Web Store (and submit for review, unless CWS_MODE is "draft")
         if: steps.gate.outputs.enabled == 'true'
         env:
           CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
           EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID || vars.CWS_EXTENSION_ID }}
-          UPLOAD_ONLY: ${{ vars.CWS_UPLOAD_ONLY }}
+          CWS_MODE: ${{ vars.CWS_MODE }}
         run: |
           set -e
           ZIP=$(ls fastmail-assist-chrome-*.zip)
-          if [ "$UPLOAD_ONLY" = "true" ]; then
+          if [ "$CWS_MODE" = "draft" ]; then
             npx --yes chrome-webstore-upload-cli@3 upload --source "$ZIP"
             echo "Uploaded $ZIP as a draft. Publish it from the developer console."
           else
@@ -102,19 +108,24 @@ jobs:
   # "unlisted" (the default): AMO signs within minutes, the signed .xpi and an
   # updates.json are attached to the release, and installs made from that
   # .xpi update themselves from GitHub. Channel "listed": the version goes
-  # into AMO's review queue and AMO publishes it when approved.
+  # into AMO's review queue and AMO publishes it when approved. "off": the
+  # job stands aside, for a release submitted to AMO by hand.
   firefox-addons:
     needs: release
     runs-on: ubuntu-latest
     environment: stores
     steps:
-      - name: Are the AMO credentials set?
+      - name: Are the AMO credentials set, and is delivery on?
         id: gate
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          AMO_CHANNEL: ${{ vars.AMO_CHANNEL }}
         run: |
-          if [ -n "$AMO_JWT_ISSUER" ] && [ -n "$AMO_JWT_SECRET" ]; then
+          if [ "$AMO_CHANNEL" = "off" ]; then
+            echo "Firefox Add-ons delivery is switched off for this release (repository variable AMO_CHANNEL=off)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$AMO_JWT_ISSUER" ] && [ -n "$AMO_JWT_SECRET" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "Firefox Add-ons delivery is off: set AMO_JWT_ISSUER and AMO_JWT_SECRET (see store/README.md)."
